@@ -55,20 +55,22 @@ void receive_card_coords(int * sock_fd, int * x, int * y){
 	
 }
 
-void send_update_card(int player_fd, char paint_color[], char write_color[], char string_to_write[], int x, int y){
 
+
+void send_update_card(int player_fd, char paint_color[], char write_color[], char string_to_write[], int x, int y){
 	char x_str[2];
 	char y_str[2];
-	char str_to_send[100];
+	char new_update_mess[100];
 	
 	sprintf(x_str, "%d", x);
 	sprintf(y_str, "%d", y);
 	
-	snprintf(str_to_send, sizeof(str_to_send), "%s:%s:%s:%s:%s", paint_color, write_color, string_to_write, x_str, y_str);
+	snprintf(new_update_mess, sizeof(new_update_mess), "%s:%s:%s:%s:%s", paint_color, write_color, string_to_write, x_str, y_str);
 	
-	printf("Message = %s\n", str_to_send);
 	
-	write(player_fd, str_to_send, sizeof(str_to_send));
+	printf("Message = %s\n", new_update_mess);
+	
+	write(player_fd, new_update_mess, sizeof(new_update_mess));
 	
 }
 
@@ -94,6 +96,7 @@ int main(){
 	
 	int cnt = 0;
 	
+	
 	while(1){
 		
 		//receive coords of board 
@@ -105,22 +108,27 @@ int main(){
 		
 		
 		switch (resp.code) {
-			case 1: // First
+			case 1: // First - Only one card to update Send a single update message
 				send_update_card(player_fd, "7-200-100", "200-200-200", resp.str_play1, resp.play1[0], resp.play1[1]);
 				break;
 			case 3: // FINNISH
 				done = 1;
-			case 2: //Correct
+			case 2: //Correct - Two cards to update at the same time : send a message with two updates
 				send_update_card(player_fd, "107-200-100", "0-0-0", resp.str_play1, resp.play1[0], resp.play1[1]);
+				sleep(0.5);
 				send_update_card(player_fd, "107-200-100", "0-0-0", resp.str_play2, resp.play2[0], resp.play2[1]);
 				break;
 			case -2: //Incorrect
 				send_update_card(player_fd, "107-200-100", "255-0-0", resp.str_play1, resp.play1[0], resp.play1[1]);
+				sleep(0.5);
 				send_update_card(player_fd, "107-200-100", "255-0-0", resp.str_play2, resp.play2[0], resp.play2[1]);
+				
+				printf("The second play was : (%d,%d)\n", resp.play2[0], resp.play2[1]);
 				
 				sleep(2);
 				
 				send_update_card(player_fd, "255-255-255", "255-255-255", " ", resp.play1[0], resp.play1[1]);
+				sleep(0.5);
 				send_update_card(player_fd, "255-255-255", "255-255-255", " ", resp.play2[0], resp.play2[1]);
 				
 				break;

@@ -19,6 +19,8 @@ void connect_to_server(char ip_addr[], int * sock_fd){
 		exit(-1);
 	}
 	
+	
+	
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port= htons(MEMORY_PORT);
 	inet_aton(ip_addr, &server_addr.sin_addr);
