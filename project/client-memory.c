@@ -20,7 +20,6 @@ void connect_to_server(char ip_addr[], int * sock_fd){
 	}
 	
 	
-	
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port= htons(MEMORY_PORT);
 	inet_aton(ip_addr, &server_addr.sin_addr);
@@ -89,45 +88,66 @@ void string_color_to_RGB(char * string_color, int * RGB){
 	RGB[2] = atoi(strtok(NULL, delim));
 }
 
-void update_board(char update_info[]){
+void update_board(char play[]){
 	char delim[] = ":";
-	
+		
 	char * card_color;
 	char * text_color;
 	char * char_to_write;
 	int  x_pos;
 	int  y_pos;
-	
-	card_color = strtok(update_info, delim);
+		
+	card_color = strtok(play, delim);
 	text_color = strtok(NULL, delim);
 	char_to_write = strtok(NULL, delim);
 	x_pos = atoi(strtok(NULL, delim));
 	y_pos = atoi(strtok(NULL, delim));
-	
+		
 	int card_RGB[3];
 	int text_RGB[3];
-	
+		
 	string_color_to_RGB(card_color, card_RGB);
 	string_color_to_RGB(text_color, text_RGB);
-	
+		
 	printf("Char write : %s\n", char_to_write);
-	
+		
 	paint_card(x_pos, y_pos, card_RGB[0], card_RGB[1], card_RGB[2]);
 	write_card(x_pos, y_pos, char_to_write, text_RGB[0], text_RGB[1], text_RGB[2]);
+}
+
+void parse_plays(char update_info[]){
 	
+	if (strstr(update_info, "=") != NULL) {
+		char * updates_delimiter = "=";
+		
+		char * play1;
+		char * play2;
+		play1 = strtok(update_info, updates_delimiter);
+		play2 = strtok(NULL, updates_delimiter);
+		
+		update_board(play1);
+		update_board(play2);
+	} else {
+		
+		update_board(update_info);
+		
+	}
+		
 }
 
 void * update_board_thread(void * sock_fd_arg){
 	int * sock_fd = sock_fd_arg;
 	
-	int cnt = 0;
-	while(cnt < 10){
+	//int cnt = 0;
+	while(1){
 		char update_info[200];
 		read(*sock_fd, &update_info, sizeof(update_info));
 		
-		update_board(update_info);
+		printf("Received the message : %s \n", update_info);
+		
+		parse_plays(update_info);
 		update_info[0] = '\0';
-		cnt++;
+		//cnt++;
 	}
 	
 	pthread_exit(NULL);

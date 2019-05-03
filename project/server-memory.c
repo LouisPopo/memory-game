@@ -55,24 +55,22 @@ void receive_card_coords(int * sock_fd, int * x, int * y){
 	
 }
 
-
-
-void send_update_card(int player_fd, char paint_color[], char write_color[], char string_to_write[], int x, int y){
+void update_info(char * message[], char paint_color[], char write_color[], char string_to_write[], int x, int y, int first){
+	
 	char x_str[2];
 	char y_str[2];
-	char new_update_mess[100];
+	char buffer[50];
 	
 	sprintf(x_str, "%d", x);
 	sprintf(y_str, "%d", y);
 	
-	snprintf(new_update_mess, sizeof(new_update_mess), "%s:%s:%s:%s:%s", paint_color, write_color, string_to_write, x_str, y_str);
+	if(first != 1)
+		strcat(message, "=");
+		
+	snprintf(buffer, sizeof(buffer), "%s:%s:%s:%s:%s", paint_color, write_color, string_to_write, x_str, y_str);
 	
-	
-	printf("Message = %s\n", new_update_mess);
-	
-	write(player_fd, new_update_mess, sizeof(new_update_mess));
-	
-}
+	strcat(message, buffer);
+} 
 
 int main(){
 	
@@ -95,7 +93,7 @@ int main(){
 	int board_x, board_y;
 	
 	int cnt = 0;
-	
+	char update_string[100];
 	
 	while(1){
 		
@@ -106,30 +104,37 @@ int main(){
 		
 		play_response resp = board_play(board_x, board_y);
 		
+		update_string[0] = '\0';
 		
 		switch (resp.code) {
 			case 1: // First - Only one card to update Send a single update message
-				send_update_card(player_fd, "7-200-100", "200-200-200", resp.str_play1, resp.play1[0], resp.play1[1]);
+				update_info(&update_string, "7-200-100", "200-200-200", resp.str_play1, resp.play1[0], resp.play1[1], 1);
+				write(player_fd, &update_string, sizeof(update_string));
+				
 				break;
 			case 3: // FINNISH
 				done = 1;
 			case 2: //Correct - Two cards to update at the same time : send a message with two updates
-				send_update_card(player_fd, "107-200-100", "0-0-0", resp.str_play1, resp.play1[0], resp.play1[1]);
-				sleep(0.5);
-				send_update_card(player_fd, "107-200-100", "0-0-0", resp.str_play2, resp.play2[0], resp.play2[1]);
+				update_info(&update_string, "107-200-100", "0-0-0", resp.str_play1, resp.play1[0], resp.play1[1], 1);
+				update_info(&update_string, "107-200-100", "0-0-0", resp.str_play2, resp.play2[0], resp.play2[1], 0);
+				write(player_fd, &update_string, sizeof(update_string));
+				//write
 				break;
 			case -2: //Incorrect
-				send_update_card(player_fd, "107-200-100", "255-0-0", resp.str_play1, resp.play1[0], resp.play1[1]);
-				sleep(0.5);
-				send_update_card(player_fd, "107-200-100", "255-0-0", resp.str_play2, resp.play2[0], resp.play2[1]);
-				
-				printf("The second play was : (%d,%d)\n", resp.play2[0], resp.play2[1]);
+				update_info(&update_string, "107-200-100", "255-0-0", resp.str_play1, resp.play1[0], resp.play1[1], 1);
+				update_info(&update_string, "107-200-100", "255-0-0", resp.str_play2, resp.play2[0], resp.play2[1], 0);
+				write(player_fd, &update_string, sizeof(update_string));
+				//write
+				printf("STRING: %s\n", update_string);
 				
 				sleep(2);
+				 
+				update_string[0] = '\0';
+				update_info(&update_string, "255-255-255", "255-255-255", " ", resp.play1[0], resp.play1[1], 1);
+				update_info(&update_string, "255-255-255", "255-255-255", " ", resp.play2[0], resp.play2[1], 0);
+				write(player_fd, &update_string, sizeof(update_string));
 				
-				send_update_card(player_fd, "255-255-255", "255-255-255", " ", resp.play1[0], resp.play1[1]);
-				sleep(0.5);
-				send_update_card(player_fd, "255-255-255", "255-255-255", " ", resp.play2[0], resp.play2[1]);
+				//write
 				
 				break;
 		}
