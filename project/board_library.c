@@ -15,6 +15,10 @@ char * get_board_place_str(int i, int j){
   return board[linear_conv(i, j)].v;
 }
 
+void reset_play(){
+	play1[0]= -1;
+}
+
 void init_board(int dim){
   int count  = 0;
   int i, j;
