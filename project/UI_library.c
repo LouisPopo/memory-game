@@ -72,8 +72,8 @@ int create_board_window(int width, int height,  int dim){
 	n_ronw_cols = dim;
 	row_height = height /n_ronw_cols;
 	col_width = width /n_ronw_cols;
-screen_width = n_ronw_cols * col_width +1;
-screen_height = n_ronw_cols *row_height +1;
+	screen_width = n_ronw_cols * col_width +1;
+	screen_height = n_ronw_cols *row_height +1;
 
 	if (SDL_CreateWindowAndRenderer(screen_width, screen_height, 0, &window, &renderer)  != 0) {
 		printf( "Window could not be created! SDL_Error: %s\n", SDL_GetError() );
@@ -94,6 +94,7 @@ screen_height = n_ronw_cols *row_height +1;
 		SDL_RenderDrawLine(renderer, i*col_width, 0, i*col_width, screen_height);
 	}
 	SDL_RenderPresent(renderer);
+	return(0);
 }
 
 void close_board_windows(){

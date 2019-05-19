@@ -7,14 +7,23 @@
 #include <SDL2/SDL_ttf.h>
 #include <unistd.h>
 #include <string.h>
+#include <time.h>
 
 #include "board_library.h"
+#define MAX_PLAYERS 100
 
 int block_message = 0;
 int under_5s = 1;
-pthread_mutex_t lock;
 
 int player_fd;
+int nb_players = 0;
+
+struct thread_args{
+	int * lock;
+	char * message;
+};
+
+
 
 void connect_to_player(int * player_fd){
 	struct sockaddr_in local_addr;
@@ -36,48 +45,57 @@ void connect_to_player(int * player_fd){
 	
 	listen(sock_fd, 5);
 	
-	*player_fd = accept(sock_fd, NULL, NULL);
+	* player_fd = accept(sock_fd, NULL, NULL);
 	
 }
 
-void * wait_2_seconds_return(void * args){
+void * wait_2_seconds_return(void * arguments){
+	struct thread_args * args = (struct thread_args *) arguments;
+	// mess = args->message
+	// lock = *(args->lock)
+	*(args->lock) = 1;
 	
-	//pthread_mutex_lock(&lock);
-	block_message = 1;
-	
-	char * message = (char *) args; 
-	size_t len = strlen(message);
+	size_t len = strlen(args->message);
 	
 	// Wait...
 	sleep(1);
 	
 	// Return the "wrong" cards.
 	printf("Sending thw wrgon cards to return\n");
-	write(player_fd, message, len);
-	block_message = 0;
-	
+	write(player_fd, args->message, len);
+	*(args->lock) = 0;
+	free(args);
 	//pthread_mutex_unlock(&lock);
 	pthread_exit(0);
 	
 }
 
-void * wait_5_sec_for_play(void * args){
+void * wait_5_sec_for_play(void * arguments){
+	struct thread_args * args = (struct thread_args *) arguments;
+
 	printf("Waiting 5 seconds for second play...\n");
-	char * message = (char *) args;
-	size_t len = strlen(message);
+	//char * message = (char *) args->message;
+	size_t len = strlen(args->message);
 	
-	under_5s = 1;
+	*(args->lock) = 1;
+	//under_5s = 1;
 	sleep(3);
-	under_5s= 0;
+	*(args->lock) = 0;
+	//under_5s= 0;
+	
 	printf("It took more than 5 seconds!\n");
 	
 	printf("Sending reset : string\n");
-	printf("%s\n", message);
-	write(player_fd, message, len);
+	printf("%s\n", args->message);
+	write(player_fd, args->message, len);
 	printf("Reseting play...\n");
-	under_5s = 1;
-	message[0] = '\0';
+	*(args->lock) = 1;
+	//under_5s = 1;
+	args->message[0] = '\0';
 	reset_play();
+
+	free(args);
+
 	pthread_exit(0);
 }
 
@@ -119,11 +137,39 @@ void update_info(char * message[], char paint_color[], char write_color[], char 
 	strcat(message, buffer);
 } 
 
+void random_color(char * color_buffer){
+	int r = rand() % 256;
+	int g = rand() % 256;
+	int b = rand() % 256;
+	sprintf(color_buffer, "%d:%d:%d", r,g,b);
+}
+
+/*int mulitple_main(){
+	int board_dim = 4;
+
+	init_board(board_dim);
+
+	// goes in a loop and wait for players...
+	// each player connecting go to his thread...
+
+	init_connections();
+	while (1)
+	{
+		connect_to_player(nb_players);
+		nb_players++;
+		//char * color;
+		//random_color(color);
+		//printf("Random color : %s\n", color);	
+	}
+	
+}*/
+
+
+
 int main(){
 	
 	int board_dim = 4;
 	
-	pthread_mutex_init(&lock, NULL);
 	
 	// Initialize the board
 	init_board(board_dim);
@@ -169,7 +215,11 @@ int main(){
 						update_info(&reset_string, "255-255-255", "255-255-255", " ", resp.play1[0], resp.play1[1], 1);
 						
 						//Should start a timer of 5 second, wait and return card if nothing is played.
-						pthread_create(&pid2, NULL, wait_5_sec_for_play, (void*) reset_string);
+						struct thread_args *args_5sec = malloc(sizeof(struct thread_args));
+						args_5sec->lock = &under_5s;
+						args_5sec->message = reset_string;
+
+						pthread_create(&pid2, NULL, wait_5_sec_for_play, args_5sec);
 						
 						break;
 					case 3: // FINNISH
@@ -198,8 +248,11 @@ int main(){
 						update_info(&update_string, "255-255-255", "255-255-255", " ", resp.play1[0], resp.play1[1], 1);
 						update_info(&update_string, "255-255-255", "255-255-255", " ", resp.play2[0], resp.play2[1], 0);
 						
+						struct thread_args *args_wait2 = malloc(sizeof(struct thread_args));
+						args_wait2->lock = &block_message;
+						args_wait2->message = update_string;
 						
-						pthread_create(&pid1, NULL, wait_2_seconds_return, (void*) update_string);
+						pthread_create(&pid1, NULL, wait_2_seconds_return, args_wait2);
 						
 						
 						break;
