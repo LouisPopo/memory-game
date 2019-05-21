@@ -24,6 +24,8 @@ void connect_to_server(char ip_addr[], int * sock_fd){
 	server_addr.sin_port= htons(MEMORY_PORT);
 	inet_aton(ip_addr, &server_addr.sin_addr);
 	
+
+	
 	if(connect(*sock_fd,(const struct sockaddr *) &server_addr,sizeof(server_addr)) == -1){
 		printf("Error connecting\n");
 		exit(-1);
@@ -37,7 +39,7 @@ void receive_int(int * num, int fd){
 	int32_t ret;
 	char * data = (char*)&ret;
 	read(fd, data, sizeof(ret));
-	
+	printf("data received : %d\n", ret);
 	*num = ntohl(ret);
 }
 
@@ -181,8 +183,11 @@ int main(int argc, char * argv[]){
 	
 	// Get the dimension of the board and creates it.
 	int board_dim;
+	printf("waiting dim...\n");
 	receive_int(&board_dim, sock_fd);
+	printf("OK!\n");
 	
+	printf("received size : %d\n", board_dim);
 	int err = create_board_window(300, 300, board_dim);
 	
 	// Create two Threads : 

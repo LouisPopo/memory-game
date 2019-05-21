@@ -6,7 +6,7 @@ CC = gcc
 SERVER_NAME = server
 CLIENT_NAME = client
 
-LINKER_FLAGS = -lSDL2 -lSDL2_ttf -pthread
+LINKER_FLAGS = -lSDL2 -lSDL2_ttf -lpthread
 
 all: server client
 
