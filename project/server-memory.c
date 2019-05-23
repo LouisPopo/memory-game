@@ -57,7 +57,6 @@ void init_connections(){
 		perror("bind");
 		exit(-1);
 	}
-	printf(" socket created and binded \n");
 	listen(GLOBAL_SOCK_FD, 5);
 }
 
@@ -74,15 +73,12 @@ void * wait_2_seconds_return(void * arguments){
 	struct thread_args * args = (struct thread_args *) arguments;
 	
 	*(args->lock) = 1;
-	printf("lock in thread : %d\n addr : %hx\n", *(args->lock), args->lock);
 	size_t len = strlen(args->message);
 	
 	// Wait...
 	sleep(2);
 	
 	// Return the "wrong" cards.
-	printf("Sending the wrong cards to return\n");
-	printf("Message to send : %s\n", args->message);
 	
 	write_to_all(args->message, len);
 	
@@ -101,10 +97,8 @@ void * wait_5_sec_for_play(void * arguments){
 		pthread_exit(0);
 	} else {
 		*(args->running_flag) = 1;
-		printf("Waiting 5 seconds for second play (%d,%d)...\n", args->x1, args->y1);
 		//char * message = (char *) args->message;
 		size_t len = strlen(args->message);
-		printf("flag in thread: %d\n", *(args->lock));
 		
 		sleep(5);
 
@@ -168,29 +162,93 @@ void random_color(char * color_buf){
 	int g = rand() % 256;
 	int b = rand() % 256;
 	sprintf(color_buf, "%d-%d-%d", r,g,b);
-	printf("in function : %s\n", color_buf);
 }
 
 void deconnect_player(int id){
 	//close the socket
 	close(player_fd[id][0]);
+	printf("closing player %d socket\n", id);
 	//make it inactive
 	player_fd[id][1] == 0;
 }
 
 void write_to_all(char * message, int size){
+	printf("Writing to all : %s\n", message);
 	for(int i = 0; i < nb_players; i++){
 		if(player_fd[i][1] == 1){
 			write(player_fd[i][0], message, size);
+			
 		}
 	}
+}
+
+void * bot_thread(void * args){
+	
+	int * id_pntr = args;
+	int id = *id_pntr;
+
+	char update_string[100];
+	char reset_string[100];
+
+	int board_x, board_y;
+
+	send_int(board_dim, player_fd[id][0]);
+
+	while(1){
+
+		receive_card_coords(id, &board_x, &board_y);
+		
+		if(board_x == -1 && board_y == -1){
+			printf("BOT %d wants to deconect\n", id);
+			deconnect_player(id);
+			
+			break;
+		}
+		
+		play_response resp = board_play(board_x, board_y, id);
+		
+		memset(update_string, 0, sizeof(update_string));
+		memset(reset_string, 0, sizeof(reset_string));
+
+		int resp_code = resp.code;
+		
+		if(resp_code == 1){ //first pick
+			update_info(&update_string, player_color[id], "200-200-200", resp.str_play1, resp.play1[0], resp.play1[1], 1);
+			
+			write_to_all(&update_string, sizeof(update_string));
+
+		} else if (resp_code == 2){ // is good
+			
+			update_info(&update_string, player_color[id], "0-0-0", resp.str_play1, resp.play1[0], resp.play1[1], 1);
+			update_info(&update_string, player_color[id], "0-0-0", resp.str_play2, resp.play2[0], resp.play2[1], 0);
+			write_to_all(&update_string, sizeof(update_string));
+
+		} else if (resp_code == -2){ //is no good
+
+			update_info(&update_string, player_color[id], "255-0-0", resp.str_play1, resp.play1[0], resp.play1[1], 1);
+			update_info(&update_string, player_color[id], "255-0-0", resp.str_play2, resp.play2[0], resp.play2[1], 0);
+			write_to_all(&update_string, sizeof(update_string));
+
+			sleep(2);
+
+			memset(update_string, 0, sizeof(update_string));
+
+			update_info(&update_string, "255-255-255", "255-255-255", " ", resp.play1[0], resp.play1[1], 1);
+			update_info(&update_string, "255-255-255", "255-255-255", " ", resp.play2[0], resp.play2[1], 0);
+
+			write_to_all(&update_string, sizeof(update_string));
+		}
+		
+	}
+	
+	exit(1);
 }
 
 
 void * player_main(void * args){
 	int * id_pntr = args;
 	int id = *id_pntr;
-	printf("In player thread : %d\n", id);
+
 	send_int(board_dim, player_fd[id][0]);
 
 	int board_x, board_y;
@@ -227,60 +285,50 @@ void * player_main(void * args){
 	//cell_status = (* board_place)malloc(sizeof(board_place));
 	for(int i = 0; i < board_dim; i++){
 		for(int j = 0; j < board_dim; j++){
-			get_cell_status(&infos,i, j);
-			printf("received for (%d,%d)\n", i, j);
-			
-			if(infos.player_id != -1){
-				printf("need to update (%d,%d)\n", i, j);
-				int player_id = infos.player_id;
-				
-				printf("player_color = %s\n", player_color[id]);
-				printf("str_color = %s\n", infos.string_color);
-				printf("str = %s\n", infos.str);
 
+			get_cell_status(&infos,i, j);
+
+			if(infos.player_id != -1){
+
+				int player_id = infos.player_id;
+			
 				char i_str[2];
 				char j_str[2];
 				sprintf(i_str, "%d", i);
 				sprintf(j_str, "%d", j);
 				
-
 				sprintf(cell_str_status, "%s:%s:%s:%s:%s", player_color[player_id], infos.string_color, infos.str, i_str, j_str);
 
 				write(player_fd[id][0], &cell_str_status, sizeof(cell_str_status));
 
-				cell_str_status[0] = '\0';
+				memset(cell_str_status, 0, sizeof(cell_str_status));
 
-				printf("writing : %s\n", cell_str_status);
-				printf("sended\n");
 			}
 		}
 	}
 
 	char end[3] = "***";
 	write(player_fd[id][0], &end, sizeof(end));
-
-	printf("send end of message ***\n");
 	
 	
 
 
 	while(1 && !done){
-		printf("locker = %d\n addr = %hx\n",locker, &locker);
-		
+
 		time(&t1);
 		receive_card_coords(id, &board_x, &board_y);
+		
 		if(board_x == -1 && board_y == -1){
-			printf("client %d wants to deconect\n", id);
+			printf("Client %d wants to deconect\n", id);
 			deconnect_player(id);
 			
 			break;
 		}
 		time(&t2);
-		
-		if (locker != 1){
-			
+
+		if(locker != 1){
 			play_response resp = board_play(board_x, board_y, id);
-			
+		
 			memset(update_string, 0, sizeof(update_string));
 			memset(reset_string, 0, sizeof(reset_string));
 
@@ -288,8 +336,6 @@ void * player_main(void * args){
 			
 			if(resp_code == 1){
 				update_info(&update_string, player_color[id], "200-200-200", resp.str_play1, resp.play1[0], resp.play1[1], 1);
-				
-				printf("update string : %s with size : %d\n", update_string, sizeof(update_string));
 				
 				write_to_all(&update_string, sizeof(update_string));
 				
@@ -333,12 +379,10 @@ void * player_main(void * args){
 				args_wait2->x2 = resp.play2[0];
 				args_wait2->y2 = resp.play2[1];
 
-				
 				int res = pthread_create(&pid1, NULL, wait_2_seconds_return, args_wait2);
 
 			}
 		}
-
 		
 	}
 	printf("FINISH\n");
@@ -346,6 +390,7 @@ void * player_main(void * args){
 
 void siginthandler(){
 	close(GLOBAL_SOCK_FD);
+	printf("closing global sock_fd");
 	exit(1);
 }
 
@@ -373,13 +418,23 @@ int main(){
 		connect_to_player(nb_players);
 
 		
+		//receive information about bot or player
 		int player_id = nb_players;
 
+		char bot[3];
+		read(player_fd[player_id][0], &bot, sizeof(bot));
+		
 		char * color = (char *)malloc(15*sizeof(char));
 		random_color(color);
 		strcpy(player_color[player_id], color);
-
-		pthread_create(&players_thread[player_id], NULL, player_main, &player_id);
+		
+		if(strcmp(bot, "b") == 0){
+			printf("is a bot\n");
+			pthread_create(&players_thread[player_id], NULL, bot_thread, &player_id);
+		} else {
+			printf("is a client\n");
+			pthread_create(&players_thread[player_id], NULL, player_main, &player_id);
+		}
 
 		nb_players++;
 	}

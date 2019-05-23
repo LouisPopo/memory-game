@@ -39,14 +39,12 @@ void receive_int(int * num, int fd){
 	int32_t ret;
 	char * data = (char*)&ret;
 	read(fd, data, sizeof(ret));
-	printf("data received : %d\n", ret);
 	*num = ntohl(ret);
 }
 
 void send_card_coordinates(int x, int y, int * sock_fd){
 	char coords[10];
 	sprintf(coords, "%d+%d", x, y);
-	printf("Coords: %s\n", coords);
 	write(*sock_fd, &coords, sizeof(coords));
 }
 
@@ -114,7 +112,6 @@ void update_board(char play[]){
 	string_color_to_RGB(card_color, card_RGB);
 	string_color_to_RGB(text_color, text_RGB);
 		
-	printf("Char write : %s\n", char_to_write);
 		
 	paint_card(x_pos, y_pos, card_RGB[0], card_RGB[1], card_RGB[2]);
 	write_card(x_pos, y_pos, char_to_write, text_RGB[0], text_RGB[1], text_RGB[2]);
@@ -185,14 +182,16 @@ int main(int argc, char * argv[]){
 		ip_addr = argv[1];
 	
 	connect_to_server(ip_addr, &sock_fd);
+
+	//send the fact that its a player
+	char client[3];
+	strcpy(client, "cl");
+	write(sock_fd, client, sizeof(client));
 	
 	// Get the dimension of the board and creates it.
 	int board_dim;
-	printf("waiting dim...\n");
 	receive_int(&board_dim, sock_fd);
-	printf("OK!\n");
 	
-	printf("received size : %d\n", board_dim);
 	int err = create_board_window(300, 300, board_dim);
 
 	char cell_info[100];
@@ -200,16 +199,13 @@ int main(int argc, char * argv[]){
 		//received update of the actual board
 		read(sock_fd, &cell_info, sizeof(cell_info));
 		
-		printf("received the cell info : %s\n", cell_info);
 		if(strcmp(cell_info, "***") == 0){
 			break;
 		} else {
-			printf("received to update : %s\n", cell_info);
 			update_board(cell_info);
 			memset(cell_info, 0, sizeof(cell_info));
 		}
 	}
-	printf("finish receiving info board\n");
 	
 	// Create two Threads : 
 		// 1 - Process the mouse clicks and send the info to the server
