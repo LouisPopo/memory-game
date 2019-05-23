@@ -3,8 +3,14 @@
 #include <stdio.h>
 #include <string.h>
 
+#define WHITE "255-255-255"
+#define BLACK "0-0-0"
+#define RED "255-0-0"
+#define GREY "200-200-200"
+
 int dim_board;
 board_place * board;
+cell_info * cells_info;
 
 int play[100][2];
 
@@ -19,8 +25,15 @@ char * get_board_place_str(int i, int j){
   return board[linear_conv(i, j)].v;
 }
 
-void reset_play(int player_id){
+void reset_cell_status(int x, int y){
+  int i = linear_conv(x, y); 
+  cells_info[i].player_id = -1;
+  strcpy(cells_info[i].str, "");
+  strcpy(cells_info[i].string_color, "");
+}
+void reset_play(int player_id, int x, int y){
 	play[player_id][0]= -1;
+  reset_cell_status(x,y);
 }
 
 void init_board(int dim){
@@ -36,9 +49,13 @@ void init_board(int dim){
   }
   
   board = malloc(sizeof(board_place)* dim *dim);
-
+  cells_info = malloc(sizeof(cell_info) * dim *dim);
+  
   for( i=0; i < (dim_board*dim_board); i++){
     board[i].v[0] = '\0';
+    cells_info[i].str[0]= '\0';
+    strcpy(cells_info[i].string_color, "");
+    cells_info[i].player_id = -1;
   }
 
   for (char c1 = 'a' ; c1 < ('a'+dim_board); c1++){
@@ -66,9 +83,11 @@ void init_board(int dim){
         return;
     }
   }
+
 }
 
 play_response board_play(int x, int y, int id){
+  int i;
   play_response resp;
   resp.code =10;
   if(strcmp(get_board_place_str(x, y), "")==0){
@@ -101,6 +120,14 @@ play_response board_play(int x, int y, int id){
         // put the stringat (x,y) into resp
         strcpy(resp.str_play1, get_board_place_str(x, y));
 
+        //
+        i = linear_conv(x,y);
+        
+        cells_info[i].player_id = id;
+        strcpy(cells_info[i].str, resp.str_play1);
+        strcpy(cells_info[i].string_color, GREY);
+        
+
       }else{  // second pick(either will be filled, right or wrong)
         // get the first pick string
         char * first_str = get_board_place_str(play[id][0], play[id][1]);
@@ -127,6 +154,16 @@ play_response board_play(int x, int y, int id){
             strcpy(first_str, "");
             strcpy(secnd_str, "");
 
+            i = linear_conv(play[id][0],play[id][1]);
+            cells_info[i].player_id = id;
+            strcpy(cells_info[i].str, resp.str_play1);
+            strcpy(cells_info[i].string_color, BLACK);
+            i = linear_conv(x,y);
+            cells_info[i].player_id = id;
+            strcpy(cells_info[i].str, resp.str_play2);
+            strcpy(cells_info[i].string_color, BLACK);
+
+
             n_corrects +=2;
             if (n_corrects == dim_board * dim_board)
               resp.code =3;
@@ -135,6 +172,15 @@ play_response board_play(int x, int y, int id){
           }else{
             printf("INCORRECT");
 
+            i = linear_conv(play[id][0],play[id][1]);
+            cells_info[i].player_id = id;
+            strcpy(cells_info[i].str, resp.str_play1);
+            strcpy(cells_info[i].string_color, RED);
+            i = linear_conv(x,y);
+            cells_info[i].player_id = id;
+            strcpy(cells_info[i].str, resp.str_play2);
+            strcpy(cells_info[i].string_color, RED);
+
             resp.code = -2;
           }
           play[id][0]= -1;
@@ -142,4 +188,11 @@ play_response board_play(int x, int y, int id){
       }
     }
   return resp;
+}
+
+void get_cell_status(cell_info * info, int x, int y){
+  
+  int i = linear_conv(x,y);
+  *info = cells_info[i];
+  
 }

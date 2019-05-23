@@ -45,7 +45,7 @@ void receive_int(int * num, int fd){
 
 void send_card_coordinates(int x, int y, int * sock_fd){
 	char coords[10];
-	sprintf(coords, "%d-%d", x, y);
+	sprintf(coords, "%d+%d", x, y);
 	printf("Coords: %s\n", coords);
 	write(*sock_fd, &coords, sizeof(coords));
 }
@@ -77,6 +77,9 @@ void * mouse_click_thread(void * sock_fd_arg){
 		}
 	}
 	close_board_windows();
+	//should send a message to close the client
+	send_card_coordinates(-1, -1, sock_fd);
+	close(*sock_fd);
 	pthread_exit(NULL);
 }
 
@@ -148,7 +151,9 @@ void * update_board_thread(void * sock_fd_arg){
 		printf("Received the message : %s \n", update_info);
 		
 		parse_plays(update_info);
+		memset(update_info, 0, sizeof(update_info));
 		update_info[0] = '\0';
+
 		//cnt++;
 	}
 	
@@ -189,6 +194,22 @@ int main(int argc, char * argv[]){
 	
 	printf("received size : %d\n", board_dim);
 	int err = create_board_window(300, 300, board_dim);
+
+	char cell_info[100];
+	while(1){
+		//received update of the actual board
+		read(sock_fd, &cell_info, sizeof(cell_info));
+		
+		printf("received the cell info : %s\n", cell_info);
+		if(strcmp(cell_info, "***") == 0){
+			break;
+		} else {
+			printf("received to update : %s\n", cell_info);
+			update_board(cell_info);
+			memset(cell_info, 0, sizeof(cell_info));
+		}
+	}
+	printf("finish receiving info board\n");
 	
 	// Create two Threads : 
 		// 1 - Process the mouse clicks and send the info to the server
