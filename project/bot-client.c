@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include "UI_library.h"
 
@@ -17,14 +18,19 @@
 
 int * available_cells;
 int dim_board;
+int sock_fd;
 
+int linear_conv(int i, int j){
+	return j*dim_board+i;
+}
 
 int is_available(int i, int j){ // return one if the cell is available
-  	return available_cells[j*dim_board+i];
+  	return available_cells[linear_conv(i,j)];
 }
 
 void change_availability(int x, int y, int is_available){
-	available_cells[y*dim_board+x] = is_available;
+	available_cells[linear_conv(x,y)] = is_available;
+	//printf("(%d,%d) = %d\n", x,y,is_available);
 }
 
 void connect_to_server(char ip_addr[], int * sock_fd){
@@ -55,7 +61,7 @@ void connect_to_server(char ip_addr[], int * sock_fd){
 void send_card_coordinates(int x, int y, int * sock_fd){
 	char coords[10];
 	sprintf(coords, "%d+%d", x, y);
-	printf("Coords: %s\n", coords);
+	printf("Card picked : %s\n", coords);
 	write(*sock_fd, &coords, sizeof(coords));
 }
 
@@ -79,10 +85,12 @@ void get_coords_and_availability(int * x, int * y, int * available, char buffer[
 	*x = atoi(strtok(NULL, delim));
 	*y = atoi(strtok(NULL, delim));
 	
-	if(strcmp(text_color, WHITE))
+	if(strcmp(text_color, WHITE) == 0)
 		*available = 1;
 	else
 		*available = 0;
+
+	printf("(%d,%d) = %d\n", *x, *y, *available);
 }
 
 void * receive_thread(void * sock_fd_arg){
@@ -94,7 +102,12 @@ void * receive_thread(void * sock_fd_arg){
 	char * updates_delimiter = "=";
 	
 	while(1){
+
 		read(*sock_fd, &buffer, sizeof(buffer));
+		
+		if(strcmp(buffer, "over") == 0){
+			break;
+		}
 
 		if (strstr(buffer, "=") != NULL) { //there is two cells to change
 			
@@ -104,16 +117,13 @@ void * receive_thread(void * sock_fd_arg){
 			play2 = strtok(NULL, updates_delimiter);
 		
 			get_coords_and_availability(&x,&y,&is_available, play1);
-			printf("(%d,%d) : %d\n", x,y, is_available);
 			change_availability(x,y,is_available);
 
 			get_coords_and_availability(&x,&y,&is_available, play2);
-			printf("(%d,%d) : %d\n", x,y, is_available);
 			change_availability(x,y,is_available);
 
 		} else {
 			get_coords_and_availability(&x,&y,&is_available, buffer);
-			printf("(%d,%d) : %d\n", x,y, is_available);
 			change_availability(x,y,is_available);
 		}
 
@@ -121,11 +131,19 @@ void * receive_thread(void * sock_fd_arg){
 	}
 }
 
+void siginthandler(){
+	close(sock_fd);
+	send_card_coordinates(-1,-1,&sock_fd);
+	printf("closing sock_fd");
+	exit(1);
+}
+
 int main(int argc, char * argv[]){
-	
+	signal(SIGINT, siginthandler);
+
 	char DEFAULT_IP_ADDRESS[] = "127.0.0.1";
 	char * ip_addr;
-	int sock_fd;
+	
 	
 	if (argc < 2)
 		ip_addr = DEFAULT_IP_ADDRESS; 
@@ -149,7 +167,7 @@ int main(int argc, char * argv[]){
 	available_cells = malloc(sizeof(int) * dim_board * dim_board);
 	for (int i = 0; i < dim_board; i++){
 		for(int j = 0; j < dim_board; j++){
-			available_cells[i] = 1;
+			available_cells[linear_conv(i,j)] = 1;
 		}
 	}
 
@@ -161,29 +179,30 @@ int main(int argc, char * argv[]){
 	srand(time(NULL));
 
 	while(1){
-		
 
-		printf("thinking of first pick...");
+		sleep(1);
+		
+		do{
+			card_x = rand() % dim_board;
+        	card_y = rand() % dim_board;
+		} while(!is_available(card_x, card_y)); 
+
+		send_card_coordinates(card_x, card_y, &sock_fd);
+		change_availability(card_x, card_y, 0);
+
+		sleep(1);
+		
 		do{
 			card_x = rand() % dim_board;
         	card_y = rand() % dim_board;
 		} while(!is_available(card_x, card_y));
-        printf("DONE!\n");
-		send_card_coordinates(card_x, card_y, &sock_fd);
-		change_availability(card_x, card_y, 0);
-
-		sleep(3);
-		printf("thinking of second pick...");
-		do{
-			card_x = rand() % dim_board;
-        	card_y = rand() % dim_board;
-		} while(!is_available(card_x, card_y));
-		printf("DONE!\n");
-		send_card_coordinates(card_x, card_y, &sock_fd);
-		change_availability(card_x, card_y, 0);
 		
-		printf("sleeping 3 seconds...");
-		sleep(3);	
+		send_card_coordinates(card_x, card_y, &sock_fd);
+		change_availability(card_x, card_y, 0);
+		printf("Played!\n");
+		
+		printf("\nsleeping 3 seconds...");
+		sleep(1);	
         printf("DONE!\n");
     }
 
