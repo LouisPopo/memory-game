@@ -100,7 +100,7 @@ play_response board_play(int x, int y, int id){
     if(play[id][0]== -1){
 
       //verify that no other player has taken this as his first guess
-      
+    
       for(int index = 0; index < 100; index++){
         if(index != id){
           if(play[index][0] == x){
@@ -109,99 +109,100 @@ play_response board_play(int x, int y, int id){
           }
         }        
       }
-        printf("FIRST\n");
-        resp.code =1;
 
-        play[id][0]=x;
-        play[id][1]=y;
+      printf("FIRST\n");
+      resp.code =1;
 
-        //put in resp the x and y coordinates of the 1st play
-        resp.play1[0]= play[id][0];
-        resp.play1[1]= play[id][1];
+      play[id][0]=x;
+      play[id][1]=y;
+
+      //put in resp the x and y coordinates of the 1st play
+      resp.play1[0]= play[id][0];
+      resp.play1[1]= play[id][1];
+      
+      // put the stringat (x,y) into resp
+      strcpy(resp.str_play1, get_board_place_str(x, y));
+
+      //
+      i = linear_conv(x,y);
+      
+      cells_info[i].player_id = id;
+      strcpy(cells_info[i].str, resp.str_play1);
+      strcpy(cells_info[i].string_color, GREY);
+      
+
+    }else{  // second pick(either will be filled, right or wrong)
+      // get the first pick string
+      char * first_str = get_board_place_str(play[id][0], play[id][1]);
+      char * secnd_str = get_board_place_str(x, y);
+
+      // if old == new (1st == 2nd) then it means it was a pick that was already picked
+      if ((play[id][0]==x) && (play[id][1]==y)){
+        resp.code =0;
+        printf("FILLED\n");
+      } else {
         
-        // put the stringat (x,y) into resp
-        strcpy(resp.str_play1, get_board_place_str(x, y));
-
-        //
-        i = linear_conv(x,y);
-        
-        cells_info[i].player_id = id;
-        strcpy(cells_info[i].str, resp.str_play1);
-        strcpy(cells_info[i].string_color, GREY);
-        
-
-      }else{  // second pick(either will be filled, right or wrong)
-        // get the first pick string
-        char * first_str = get_board_place_str(play[id][0], play[id][1]);
-        char * secnd_str = get_board_place_str(x, y);
-
-        // if old == new (1st == 2nd) then it means it was a pick that was already picked
-        if ((play[id][0]==x) && (play[id][1]==y)){
-          resp.code =0;
+        cell_info st;
+        get_cell_status(&st, x,y);
+        if(st.player_id != -1){
+          resp.code = 0;
           printf("FILLED\n");
+          return resp;
         } else {
-          
-          
-          cell_info st;
-          get_cell_status(&st, x,y);
-          if(st.player_id != -1){
-            resp.code = 0;
-            printf("FILLED\n");
-            
-          } else {
 
-            // it is either good or bad
-            //play1 is the 1st pick
+          // it is either good or bad
+          //play1 is the 1st pick
 
-            resp.play1[0]= play[id][0];
-            resp.play1[1]= play[id][1];
-            strcpy(resp.str_play1, first_str);
+          resp.play1[0]= play[id][0];
+          resp.play1[1]= play[id][1];
+          strcpy(resp.str_play1, first_str);
 
-            //play2 is the new pick
-            resp.play2[0]= x;
-            resp.play2[1]= y;
-            strcpy(resp.str_play2, secnd_str);
+          //play2 is the new pick
+          resp.play2[0]= x;
+          resp.play2[1]= y;
+          strcpy(resp.str_play2, secnd_str);
 
-            if (strcmp(first_str, secnd_str) == 0){ // they are the same
-              printf("CORRECT!!!\n");
-              //erase the strings
-              strcpy(first_str, "");
-              strcpy(secnd_str, "");
+          if (strcmp(first_str, secnd_str) == 0){ // they are the same
+            printf("CORRECT!!!\n");
+            //erase the strings
+            strcpy(first_str, "");
+            strcpy(secnd_str, "");
 
-              i = linear_conv(play[id][0],play[id][1]);
-              cells_info[i].player_id = id;
-              strcpy(cells_info[i].str, resp.str_play1);
-              strcpy(cells_info[i].string_color, BLACK);
-              i = linear_conv(x,y);
-              cells_info[i].player_id = id;
-              strcpy(cells_info[i].str, resp.str_play2);
-              strcpy(cells_info[i].string_color, BLACK);
+            i = linear_conv(play[id][0],play[id][1]);
+            cells_info[i].player_id = id;
+            strcpy(cells_info[i].str, resp.str_play1);
+            strcpy(cells_info[i].string_color, BLACK);
+            i = linear_conv(x,y);
+            cells_info[i].player_id = id;
+            strcpy(cells_info[i].str, resp.str_play2);
+            strcpy(cells_info[i].string_color, BLACK);
 
 
-              n_corrects +=2;
-              if (n_corrects == dim_board * dim_board)
-                resp.code =3;
-              else
-                resp.code =2;
-            }else{
-              printf("INCORRECT");
+            n_corrects +=2;
+            if (n_corrects == dim_board * dim_board)
+              resp.code =3;
+            else
+              resp.code =2;
+          }else{
+            printf("INCORRECT\n");
 
-              i = linear_conv(play[id][0],play[id][1]);
-              cells_info[i].player_id = id;
-              strcpy(cells_info[i].str, resp.str_play1);
-              strcpy(cells_info[i].string_color, RED);
-              i = linear_conv(x,y);
-              cells_info[i].player_id = id;
-              strcpy(cells_info[i].str, resp.str_play2);
-              strcpy(cells_info[i].string_color, RED);
+            i = linear_conv(play[id][0],play[id][1]);
+            cells_info[i].player_id = id;
+            strcpy(cells_info[i].str, resp.str_play1);
+            strcpy(cells_info[i].string_color, RED);
+            i = linear_conv(x,y);
+            cells_info[i].player_id = id;
+            strcpy(cells_info[i].str, resp.str_play2);
+            strcpy(cells_info[i].string_color, RED);
 
-              resp.code = -2;
-            }
+            resp.code = -2;
           }
-          play[id][0]= -1;
         }
+      printf("RESETTING PLAY\n");
+      play[id][0]= -1;
       }
     }
+  }
   return resp;
 }
 
