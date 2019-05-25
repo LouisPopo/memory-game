@@ -21,7 +21,8 @@ int player_fd[MAX_PLAYER][2] = {
 
 char player_color[MAX_PLAYER][15];
 pthread_t players_thread[MAX_PLAYER];
-int nb_players = 0;
+int nb_connections = 0;
+int nb_active_players = 0;
 int board_dim;
 int done = 0;
 
@@ -94,9 +95,25 @@ void * wait_2_seconds_return(void * arguments){
 	
 }
 
-void * wait_5_sec_for_play(void * arguments){
+void * wait_5_sec_for_play (void * arguments){
 	struct thread_args * args = (struct thread_args *) arguments;
+	
+	args->lock = 1;
 
+	sleep(5);
+
+	size_t len = strlen(args->message);
+	write_to_all(args->message, len);
+	reset_play(args->id, args->x1, args->y1);
+
+	args->lock = 0;
+
+
+}
+
+void * wait_5_sec_for_play2(void * arguments){
+	struct thread_args * args = (struct thread_args *) arguments;
+	
 	if(*(args->running_flag)){
 		pthread_exit(0);
 	} else {
@@ -168,11 +185,12 @@ void deconnect_player(int id){
 	printf("closing player %d socket\n", id);
 	//make it inactive
 	player_fd[id][1] == 0;
+	nb_active_players--;
 }
 
 void write_to_all(char * message, int size){
-	//printf("Writing to all : %s\n", message);
-	for(int i = 0; i < nb_players; i++){
+	printf("Writing to all : %s\n", message);
+	for(int i = 0; i < nb_connections; i++){
 		if(player_fd[i][1] == 1){
 			write(player_fd[i][0], message, size);	
 		}
@@ -188,6 +206,10 @@ void * bot_thread(void * args){
 	char reset_string[100];
 
 	int board_x, board_y;
+	
+	while(nb_connections < 2){
+		//wait...
+	}
 
 	send_int(board_dim, player_fd[id][0]);
 
@@ -200,9 +222,8 @@ void * bot_thread(void * args){
 			break;
 		}
 
-		pthread_mutex_lock(&mutex_lock);
 		play_response resp = board_play(board_x, board_y, id);
-		pthread_mutex_unlock(&mutex_lock);
+
 		printf("response : %d\n", resp.code);
 		
 		memset(update_string, 0, sizeof(update_string));
@@ -232,6 +253,9 @@ void * bot_thread(void * args){
 
 			update_info(&update_string, "255-255-255", "255-255-255", " ", resp.play1[0], resp.play1[1], 1);
 			update_info(&update_string, "255-255-255", "255-255-255", " ", resp.play2[0], resp.play2[1], 0);
+
+			reset_cell_status(resp.play1[0], resp.play1[1]);
+			reset_cell_status(resp.play2[0], resp.play2[1]);
 
 			write_to_all(&update_string, sizeof(update_string));
 		} else if (resp_code == 0) {// is is filled 
@@ -278,6 +302,12 @@ void * player_main(void * args){
 	int * id_pntr = args;
 	int id = *id_pntr;
 
+
+
+	while(nb_connections < 2){
+		//wait...
+	}
+
 	send_int(board_dim, player_fd[id][0]);
 
 	int board_x, board_y;
@@ -302,7 +332,7 @@ void * player_main(void * args){
 
 	send_current_board_dispo(id);
 
-	while(!done){
+	while(!done) {
 
 		receive_card_coords(id, &board_x, &board_y);
 		printf("Received (%d,%d) - %d\n", board_x, board_y, id);
@@ -312,71 +342,73 @@ void * player_main(void * args){
 			break;
 		}
 
-		printf("locker = %d\n", locker);
+		//printf("locker = %d\n", locker);
 
-		if(locker != 1){
-
-			//pthread_mutex_lock(&mutex_lock);
-			play_response resp = board_play(board_x, board_y, id);
-			//pthread_mutex_unlock(&mutex_lock);
-			/*printf("	Received resp : \n");
-			printf("		resp.code = %d\n", resp.code);
-			printf("		resp.play1[0] = %d\n", resp.play1[0]);
-			printf("		resp.play1[1] = %d\n", resp.play1[1]);
-			printf("		resp.str_play1 = %s\n", resp.str_play1);*/
-		
-			memset(update_string, 0, sizeof(update_string));
-			memset(reset_string, 0, sizeof(reset_string));
-
-			int resp_code = resp.code;
+		if(nb_active_players >= 2) {
 			
-			if(resp_code == 1){
+			if(locker != 1){
+
+				play_response resp = board_play(board_x, board_y, id);
+			
+				memset(update_string, 0, sizeof(update_string));
+				memset(reset_string, 0, sizeof(reset_string));
+
+				int resp_code = resp.code;
 				
-				update_info(&update_string, player_color[id], "200-200-200", resp.str_play1, resp.play1[0], resp.play1[1], 1);
-				write_to_all(&update_string, sizeof(update_string));
+				if(resp_code == 1){
+					
+					update_info(&update_string, player_color[id], "200-200-200", resp.str_play1, resp.play1[0], resp.play1[1], 1);
+					write_to_all(&update_string, sizeof(update_string));
 
-				update_info(&reset_string, "255-255-255", "255-255-255", " ", resp.play1[0], resp.play1[1], 1);
-				
-				args_5sec->message = reset_string;
-				args_5sec->x1 = board_x;
-				args_5sec->y1 = board_y;
+					update_info(&reset_string, "255-255-255", "255-255-255", " ", resp.play1[0], resp.play1[1], 1);
+					
+					args_5sec->message = reset_string;
+					args_5sec->x1 = board_x;
+					args_5sec->y1 = board_y;
+					
+					pthread_create(&five_sec_wait, NULL, wait_5_sec_for_play, args_5sec);
+					
 
-				fsec_flag = 0;
-				
-				//pthread_create(&five_sec_wait, NULL, wait_5_sec_for_play, args_5sec);
-				
+				} else if (resp_code == 2){
 
-			} else if (resp_code == 2){
-				
-				fsec_flag = 1;
+					if(args_5sec->lock == 1){
+						pthread_cancel(five_sec_wait);
+					}
+					
+					//fsec_flag = 1;
 
-				update_info(&update_string, player_color[id], "0-0-0", resp.str_play1, resp.play1[0], resp.play1[1], 1);
-				update_info(&update_string, player_color[id], "0-0-0", resp.str_play2, resp.play2[0], resp.play2[1], 0);
-				write_to_all(&update_string, sizeof(update_string));
+					update_info(&update_string, player_color[id], "0-0-0", resp.str_play1, resp.play1[0], resp.play1[1], 1);
+					update_info(&update_string, player_color[id], "0-0-0", resp.str_play2, resp.play2[0], resp.play2[1], 0);
+					write_to_all(&update_string, sizeof(update_string));
 
-			} else if (resp_code == -2){
+				} else if (resp_code == -2){
 
-				fsec_flag = 1;
+					if(args_5sec->lock == 1){
+						pthread_cancel(five_sec_wait);
+					}
 
-				update_info(&update_string, player_color[id], "255-0-0", resp.str_play1, resp.play1[0], resp.play1[1], 1);
-				update_info(&update_string, player_color[id], "255-0-0", resp.str_play2, resp.play2[0], resp.play2[1], 0);
-				write_to_all(&update_string, sizeof(update_string));
+					//fsec_flag = 1;
 
-				update_string[0] = '\0';
+					update_info(&update_string, player_color[id], "255-0-0", resp.str_play1, resp.play1[0], resp.play1[1], 1);
+					update_info(&update_string, player_color[id], "255-0-0", resp.str_play2, resp.play2[0], resp.play2[1], 0);
+					write_to_all(&update_string, sizeof(update_string));
 
-				update_info(&update_string, "255-255-255", "255-255-255", " ", resp.play1[0], resp.play1[1], 1);
-				update_info(&update_string, "255-255-255", "255-255-255", " ", resp.play2[0], resp.play2[1], 0);
+					update_string[0] = '\0';
 
-				args_wait2->message = update_string;
-				args_wait2->x1 = resp.play1[0];
-				args_wait2->y1 = resp.play1[1];
-				args_wait2->x2 = resp.play2[0];
-				args_wait2->y2 = resp.play2[1];
+					update_info(&update_string, "255-255-255", "255-255-255", " ", resp.play1[0], resp.play1[1], 1);
+					update_info(&update_string, "255-255-255", "255-255-255", " ", resp.play2[0], resp.play2[1], 0);
 
-				int res = pthread_create(&two_sec_wait, NULL, wait_2_seconds_return, args_wait2);
+					args_wait2->message = update_string;
+					args_wait2->x1 = resp.play1[0];
+					args_wait2->y1 = resp.play1[1];
+					args_wait2->x2 = resp.play2[0];
+					args_wait2->y2 = resp.play2[1];
+
+					int res = pthread_create(&two_sec_wait, NULL, wait_2_seconds_return, args_wait2);
+				}
 			}
 		}
-		
+		// if it gets here, ther is not enough players
 	}
 	printf("FINISH\n");
 }
@@ -390,7 +422,6 @@ void siginthandler(){
 
 int main(){
 
-	//redirect to close the socket
 	signal(SIGINT, siginthandler);
 	
 	pthread_mutex_init(&mutex_lock, NULL);
@@ -399,23 +430,15 @@ int main(){
 
 	init_board(board_dim);
 
-	// initialize a mutex that is shared between threads with an initial value of 1
-
-	// goes in a loop and wait for players...
-	// each player connecting go to his thread...
-
 	init_connections();
-	
-	
 
 	while (1)
 	{	
-		printf("Waiting for player %d ... \n", nb_players);
-		connect_to_player(nb_players);
+		printf("Waiting for player %d ... \n", nb_connections);
+		connect_to_player(nb_connections);
 
-		
 		//receive information about bot or player
-		int player_id = nb_players;
+		int player_id = nb_connections;
 
 		char bot[3];
 		read(player_fd[player_id][0], &bot, sizeof(bot));
@@ -432,7 +455,8 @@ int main(){
 			pthread_create(&players_thread[player_id], NULL, player_main, &player_id);
 		}
 
-		nb_players++;
+		nb_connections++;
+		nb_active_players++;
 	}
 
 }

@@ -8,7 +8,7 @@ SERVER_NAME = server
 CLIENT_NAME = client
 BOT_NAME = bot
 
-LINKER_FLAGS = -lSDL2 -lSDL2_ttf -lpthread
+LINKER_FLAGS = -lSDL2 -lSDL2_ttf -lpthread -w
 
 all: server client bot
 

@@ -195,6 +195,7 @@ int main(int argc, char * argv[]){
 	strcpy(client, "cl");
 	write(sock_fd, client, sizeof(client));
 	
+	
 	// Get the dimension of the board and creates it.
 	int board_dim;
 	receive_int(&board_dim, sock_fd);

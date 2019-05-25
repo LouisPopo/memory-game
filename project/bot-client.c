@@ -19,18 +19,24 @@
 int * available_cells;
 int dim_board;
 int sock_fd;
+pthread_mutex_t mutex_lock;
 
 int linear_conv(int i, int j){
 	return j*dim_board+i;
 }
 
 int is_available(int i, int j){ // return one if the cell is available
+	//pthread_mutex_lock(&mutex_lock);
   	return available_cells[linear_conv(i,j)];
+	//pthread_mutex_unlock(&mutex_lock);
 }
 
 void change_availability(int x, int y, int is_available){
+	
+	//pthread_mutex_lock(&mutex_lock);
 	available_cells[linear_conv(x,y)] = is_available;
-	//printf("(%d,%d) = %d\n", x,y,is_available);
+	//pthread_mutex_unlock(&mutex_lock);
+	printf("(%d,%d) = %d\n", x,y,is_available);
 }
 
 void connect_to_server(char ip_addr[], int * sock_fd){
@@ -90,7 +96,6 @@ void get_coords_and_availability(int * x, int * y, int * available, char buffer[
 	else
 		*available = 0;
 
-	printf("(%d,%d) = %d\n", *x, *y, *available);
 }
 
 void * receive_thread(void * sock_fd_arg){
@@ -139,6 +144,9 @@ void siginthandler(){
 }
 
 int main(int argc, char * argv[]){
+
+	pthread_mutex_init(&mutex_lock, NULL);
+
 	signal(SIGINT, siginthandler);
 
 	char DEFAULT_IP_ADDRESS[] = "127.0.0.1";
@@ -188,9 +196,8 @@ int main(int argc, char * argv[]){
 		} while(!is_available(card_x, card_y)); 
 
 		send_card_coordinates(card_x, card_y, &sock_fd);
-		change_availability(card_x, card_y, 0);
-
-		sleep(1);
+		//change_availability(card_x, card_y, 0);
+		sleep(2);
 		
 		do{
 			card_x = rand() % dim_board;
@@ -198,12 +205,9 @@ int main(int argc, char * argv[]){
 		} while(!is_available(card_x, card_y));
 		
 		send_card_coordinates(card_x, card_y, &sock_fd);
-		change_availability(card_x, card_y, 0);
-		printf("Played!\n");
+		//change_availability(card_x, card_y, 0);
 		
-		printf("\nsleeping 3 seconds...");
-		sleep(1);	
-        printf("DONE!\n");
+		sleep(3);	
     }
 
 }
