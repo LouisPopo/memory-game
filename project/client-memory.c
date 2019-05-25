@@ -9,6 +9,8 @@
 
 #define MEMORY_PORT 3000
 
+int done = 0;
+int board_dim;
 
 void connect_to_server(char ip_addr[], int * sock_fd){
 	struct sockaddr_in server_addr;
@@ -52,7 +54,7 @@ void send_card_coordinates(int x, int y, int * sock_fd){
 
 void * mouse_click_thread(void * sock_fd_arg){
 	SDL_Event event;
-	int done = 0;
+	
 	int * sock_fd = sock_fd_arg;
 	
 	while(!done){
@@ -94,6 +96,16 @@ void string_color_to_RGB(char * string_color, int * RGB){
 	RGB[1] = atoi(strtok(NULL, delim));
 	RGB[2] = atoi(strtok(NULL, delim));
 }
+
+void erase_board(){
+	for(int x = 0; x < board_dim; x++){
+		for(int y = 0; y < board_dim; y++){
+			paint_card(x,y,255,255,255); 
+		}
+	}
+}
+	
+
 
 void update_board(char play[]){
 	char delim[] = ":";
@@ -152,12 +164,18 @@ void * update_board_thread(void * sock_fd_arg){
 		
 		if(strcmp(update_info, "over") == 0){ //over
 			break;
+		} else if(strcmp(update_info, "game-finished") == 0){ //over
+			
+			printf("The Game is FINISHED!\n");
+			sleep(10);
+			erase_board();
+
+		} else {
+			printf("Received the message : %s \n", update_info);
+		
+			parse_plays(update_info);
 		}
-		
-		printf("Received the message : %s \n", update_info);
-		
-		parse_plays(update_info);
-		
+
 		
 	}
 	
@@ -195,9 +213,8 @@ int main(int argc, char * argv[]){
 	strcpy(client, "cl");
 	write(sock_fd, client, sizeof(client));
 	
-	
+
 	// Get the dimension of the board and creates it.
-	int board_dim;
 	receive_int(&board_dim, sock_fd);
 	
 	int err = create_board_window(300, 300, board_dim);
@@ -221,10 +238,12 @@ int main(int argc, char * argv[]){
 	
 	pthread_t m_thread, b_thread;	
 	
+	
 	pthread_create(&m_thread, NULL, mouse_click_thread, &sock_fd);
 	pthread_create(&b_thread, NULL, update_board_thread, &sock_fd);
-	
 	pthread_join(m_thread,NULL);
+	pthread_join(b_thread, NULL);
+	
 	
 	exit(1);
 }

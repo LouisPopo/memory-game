@@ -27,10 +27,8 @@ char * get_board_place_str(int i, int j){
   	return board[linear_conv(i, j)].v;
 }
 
-void init_board(int dim){
-
-	pthread_mutex_init(&mutex_lock, NULL);
-
+void clear_board(int dim){
+	
 	int count  = 0;
 	int i, j;
 	char * str_place;
@@ -77,6 +75,12 @@ void init_board(int dim){
 			return;
 		}
 	}
+}
+
+void init_board(int dim){
+
+	pthread_mutex_init(&mutex_lock, NULL);
+	clear_board(dim);
 
 }
 

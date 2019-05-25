@@ -213,19 +213,20 @@ void * bot_thread(void * args){
 
 	send_int(board_dim, player_fd[id][0]);
 
-	while(1){
+	send_current_board_dispo(id);
+
+	while(!done){
 
 		receive_card_coords(id, &board_x, &board_y);
 		
 		if(board_x == -1 && board_y == -1){
+			printf("bot wants to deconnect\n");
 			deconnect_player(id);
 			break;
 		}
 
 		play_response resp = board_play(board_x, board_y, id);
 
-		printf("response : %d\n", resp.code);
-		
 		memset(update_string, 0, sizeof(update_string));
 		memset(reset_string, 0, sizeof(reset_string));
 
@@ -264,7 +265,6 @@ void * bot_thread(void * args){
 		
 	}
 	
-	exit(1);
 }
 
 void send_current_board_dispo(int id){
@@ -354,7 +354,7 @@ void * player_main(void * args){
 				memset(reset_string, 0, sizeof(reset_string));
 
 				int resp_code = resp.code;
-				
+				printf("resp coce = %d\n", resp.code);
 				if(resp_code == 1){
 					
 					update_info(&update_string, player_color[id], "200-200-200", resp.str_play1, resp.play1[0], resp.play1[1], 1);
@@ -405,12 +405,29 @@ void * player_main(void * args){
 					args_wait2->y2 = resp.play2[1];
 
 					int res = pthread_create(&two_sec_wait, NULL, wait_2_seconds_return, args_wait2);
+				} else if (resp_code == 3){
+
+					printf("GAME IS FINISH!\n");
+					if(args_5sec->lock == 1){
+						pthread_cancel(five_sec_wait);
+					}
+					update_info(&update_string, player_color[id], "0-0-0", resp.str_play1, resp.play1[0], resp.play1[1], 1);
+					update_info(&update_string, player_color[id], "0-0-0", resp.str_play2, resp.play2[0], resp.play2[1], 0);
+					write_to_all(&update_string, sizeof(update_string));
+					
+					char game_finish[] = "game-finished";
+					write_to_all(game_finish, sizeof(game_finish));
+			
+
+					//create a new board
+					sleep(10);
+					clear_board(board_dim);
 				}
 			}
 		}
 		// if it gets here, ther is not enough players
 	}
-	printf("FINISH\n");
+
 }
 
 void siginthandler(){
