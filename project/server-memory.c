@@ -261,6 +261,18 @@ void * bot_thread(void * args){
 			write_to_all(&update_string, sizeof(update_string));
 		} else if (resp_code == 0) {// is is filled 
 			printf("FILLED!\n");
+		} else if (resp_code == 3){
+
+			printf("GAME IS FINISH!\n");
+
+			update_info(&update_string, player_color[id], "0-0-0", resp.str_play1, resp.play1[0], resp.play1[1], 1);
+			update_info(&update_string, player_color[id], "0-0-0", resp.str_play2, resp.play2[0], resp.play2[1], 0);
+			write_to_all(&update_string, sizeof(update_string));
+			
+			char game_finish[] = "game-finished";
+			write_to_all(game_finish, sizeof(game_finish));
+	
+			sleep(10);
 		}
 		
 	}

@@ -17,14 +17,57 @@
 #define MEMORY_PORT 3000
 
 int * available_cells;
+int n_correct = 0;
 int dim_board;
 int sock_fd;
 pthread_mutex_t mutex_lock;
 
+pthread_t pid_gen;
 int isover = 0;
 
 int linear_conv(int i, int j){
 	return j*dim_board+i;
+}
+
+void * play_thread(void * args){
+	int card_x, card_y;
+	srand(time(NULL));
+
+	while(1 && !isover){
+		
+		sleep(1);
+		
+		do{
+			card_x = rand() % dim_board;
+        	card_y = rand() % dim_board;
+		} while(!is_available(card_x, card_y) && n_correct < (dim_board*dim_board)); 
+
+		if(n_correct == (dim_board*dim_board)){
+			printf("faoufadiuf");
+		}
+
+		send_card_coordinates(card_x, card_y);
+		//change_availability(card_x, card_y, 0);
+		sleep(2);
+		
+		do{
+			card_x = rand() % dim_board;
+        	card_y = rand() % dim_board;
+		} while(!is_available(card_x, card_y) && n_correct < (dim_board*dim_board));
+		
+		if(n_correct == (dim_board*dim_board)){
+			printf("fghabhbubhb");
+		}
+
+		send_card_coordinates(card_x, card_y);
+		//change_availability(card_x, card_y, 0);
+		
+		sleep(3);
+    }
+	if(isover){
+		send_card_coordinates(-1,-1);
+	}
+	pthread_exit(1);
 }
 
 int is_available(int i, int j){ // return one if the cell is available
@@ -93,10 +136,15 @@ void get_coords_and_availability(int * x, int * y, int * available, char buffer[
 	*x = atoi(strtok(NULL, delim));
 	*y = atoi(strtok(NULL, delim));
 	
-	if(strcmp(text_color, WHITE) == 0)
+	if(strcmp(text_color, WHITE) == 0){
 		*available = 1;
-	else
+		n_correct--;
+	}
+	else {
 		*available = 0;
+		n_correct++;
+	}
+		
 
 }
 
@@ -110,73 +158,52 @@ void * receive_thread(void * args){
 	while(1){
 
 		read(sock_fd, &buffer, sizeof(buffer));
-		
+		printf("received : %s\n", buffer);
 		if(strcmp(buffer, "over") == 0){
 			printf("RECEIVED OVER");
 			close(sock_fd);
 			pthread_exit(1);
-		}
-
-		if(strcmp(buffer, "game over") == 0){
+		} else if(strcmp(buffer, "game-finished") == 0){
 			printf("The Game is Finish!\n");
-			close(sock_fd);
-			pthread_exit(1);
-		}
-
-		if (strstr(buffer, "=") != NULL) { //there is two cells to change
-			
-			char * play1;
-			char * play2;
-			play1 = strtok(buffer, updates_delimiter);
-			play2 = strtok(NULL, updates_delimiter);
-		
-			get_coords_and_availability(&x,&y,&is_available, play1);
-			change_availability(x,y,is_available);
-
-			get_coords_and_availability(&x,&y,&is_available, play2);
-			change_availability(x,y,is_available);
-
+			pthread_cancel(pid_gen);
+			pthread_create(&pid_gen, NULL, play_thread, NULL);
+			sleep(10);
+			erase_board();
 		} else {
-			get_coords_and_availability(&x,&y,&is_available, buffer);
-			change_availability(x,y,is_available);
-		}
+			
+			if (strstr(buffer, "=") != NULL) { //there is two cells to change
+			
+				char * play1;
+				char * play2;
+				play1 = strtok(buffer, updates_delimiter);
+				play2 = strtok(NULL, updates_delimiter);
+			
+				get_coords_and_availability(&x,&y,&is_available, play1);
+				change_availability(x,y,is_available);
 
+				get_coords_and_availability(&x,&y,&is_available, play2);
+				change_availability(x,y,is_available);
+
+			} else {
+				get_coords_and_availability(&x,&y,&is_available, buffer);
+				change_availability(x,y,is_available);
+			}
+		}
 		memset(buffer, 0, sizeof(buffer));
 	}
 }
 
-void * play_thread(void * args){
-	int card_x, card_y;
-	srand(time(NULL));
-
-	while(1 && !isover){
-		
-		sleep(1);
-		
-		do{
-			card_x = rand() % dim_board;
-        	card_y = rand() % dim_board;
-		} while(!is_available(card_x, card_y)); 
-
-		send_card_coordinates(card_x, card_y);
-		//change_availability(card_x, card_y, 0);
-		sleep(2);
-		
-		do{
-			card_x = rand() % dim_board;
-        	card_y = rand() % dim_board;
-		} while(!is_available(card_x, card_y));
-		
-		send_card_coordinates(card_x, card_y);
-		//change_availability(card_x, card_y, 0);
-		
-		sleep(3);
-    }
-	if(isover){
-		send_card_coordinates(-1,-1);
+void erase_board(){
+	printf("ERASEING BOARD MEMORY\n");
+	available_cells = malloc(sizeof(int) * dim_board * dim_board);
+	for (int i = 0; i < dim_board; i++){
+		for(int j = 0; j < dim_board; j++){
+			available_cells[linear_conv(i,j)] = 1;
+		}
 	}
-	pthread_exit(1);
 }
+
+
 
 void siginthandler(){
 	
@@ -254,7 +281,7 @@ int main(int argc, char * argv[]){
 	}
 	///
 
-	pthread_t pid_rcv, pid_gen;
+	pthread_t pid_rcv;
 
 	pthread_create(&pid_rcv, NULL, receive_thread, NULL);
 	pthread_create(&pid_gen, NULL, play_thread, NULL);

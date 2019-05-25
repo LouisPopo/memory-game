@@ -157,7 +157,6 @@ void * update_board_thread(void * sock_fd_arg){
 	int * sock_fd = sock_fd_arg;
 	char update_info[100];
 
-	//int cnt = 0;
 	while(1){
 		memset(update_info, 0, sizeof(update_info));
 		read(*sock_fd, &update_info, sizeof(update_info));
