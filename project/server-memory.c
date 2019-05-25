@@ -334,6 +334,7 @@ void * player_main(void * args){
 				
 				update_info(&update_string, player_color[id], "200-200-200", resp.str_play1, resp.play1[0], resp.play1[1], 1);
 				write_to_all(&update_string, sizeof(update_string));
+
 				update_info(&reset_string, "255-255-255", "255-255-255", " ", resp.play1[0], resp.play1[1], 1);
 				
 				args_5sec->message = reset_string;
