@@ -9,6 +9,7 @@
 
 #define MEMORY_PORT 3000
 
+
 void connect_to_server(char ip_addr[], int * sock_fd){
 	struct sockaddr_in server_addr;
 	
@@ -30,7 +31,7 @@ void connect_to_server(char ip_addr[], int * sock_fd){
 		printf("Error connecting\n");
 		exit(-1);
 	}
-	
+
 	printf("Client connected\n");
 }
 
@@ -45,6 +46,7 @@ void receive_int(int * num, int fd){
 void send_card_coordinates(int x, int y, int * sock_fd){
 	char coords[10];
 	sprintf(coords, "%d+%d", x, y);
+	printf("Click on (%d,%d)\n", x, y);
 	write(*sock_fd, &coords, sizeof(coords));
 }
 
@@ -58,6 +60,7 @@ void * mouse_click_thread(void * sock_fd_arg){
 			switch (event.type) {
 				
 				case SDL_QUIT: {
+					printf("closing the window\n");
 					done = SDL_TRUE;
 					break;
 				}
@@ -78,6 +81,7 @@ void * mouse_click_thread(void * sock_fd_arg){
 	//should send a message to close the client
 	send_card_coordinates(-1, -1, sock_fd);
 	close(*sock_fd);
+
 	pthread_exit(NULL);
 }
 
@@ -139,19 +143,22 @@ void parse_plays(char update_info[]){
 
 void * update_board_thread(void * sock_fd_arg){
 	int * sock_fd = sock_fd_arg;
-	
+	char update_info[100];
+
 	//int cnt = 0;
 	while(1){
-		char update_info[200];
+		memset(update_info, 0, sizeof(update_info));
 		read(*sock_fd, &update_info, sizeof(update_info));
+		
+		if(strcmp(update_info, "over") == 0){ //over
+			break;
+		}
 		
 		printf("Received the message : %s \n", update_info);
 		
 		parse_plays(update_info);
-		memset(update_info, 0, sizeof(update_info));
-		update_info[0] = '\0';
-
-		//cnt++;
+		
+		
 	}
 	
 	pthread_exit(NULL);

@@ -7,14 +7,12 @@
 #include <SDL2/SDL_ttf.h>
 #include <unistd.h>
 #include <string.h>
-#include <semaphore.h> 
 #include <time.h>
 #include <signal.h>
 
 #include "board_library.h"
 #define MAX_PLAYER 100
 
-int under_5s = 1;
 
 int player_fd[MAX_PLAYER][2] = {
 	{0,0},
@@ -26,7 +24,9 @@ pthread_t players_thread[MAX_PLAYER];
 int nb_players = 0;
 int board_dim;
 int done = 0;
-int isFiveSecRun = 0;
+
+
+pthread_mutex_t mutex_lock;
 
 struct thread_args{
 	int * lock;
@@ -49,9 +49,14 @@ void init_connections(){
 		perror("socket: ");
 		exit(-1);
 	}
+
+	setsockopt(GLOBAL_SOCK_FD, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int));
+
 	local_addr.sin_family = AF_INET;
 	local_addr.sin_port= htons(3000);
 	local_addr.sin_addr.s_addr= INADDR_ANY;
+
+
 	int err = bind(GLOBAL_SOCK_FD, (struct sockaddr *)&local_addr, sizeof(local_addr));
 	if(err == -1) {
 		perror("bind");
@@ -64,7 +69,6 @@ void connect_to_player(int player_i){
 	player_fd[player_i][0] = accept(GLOBAL_SOCK_FD, NULL, NULL);	
 	player_fd[player_i][1] = 1;
 }
-
 
 void * wait_2_seconds_return(void * arguments){
 	
@@ -97,13 +101,11 @@ void * wait_5_sec_for_play(void * arguments){
 		pthread_exit(0);
 	} else {
 		*(args->running_flag) = 1;
-		//char * message = (char *) args->message;
 		size_t len = strlen(args->message);
 		
 		sleep(5);
 
 		if(*(args->lock) == 0){
-			//flip card
 			write_to_all(args->message, len);
 
 			reset_play(args->id, args->x1, args->y1);
@@ -111,12 +113,6 @@ void * wait_5_sec_for_play(void * arguments){
 		}
 		*(args->running_flag) = 0;
 	}
-	
-	
-	
-	//free(args);
-
-	//pthread_exit(0);
 }
 
 // Function to send int to client
@@ -166,6 +162,8 @@ void random_color(char * color_buf){
 
 void deconnect_player(int id){
 	//close the socket
+	char termination_message[] = "over";
+	write(player_fd[id][0], &termination_message, sizeof(termination_message));
 	close(player_fd[id][0]);
 	printf("closing player %d socket\n", id);
 	//make it inactive
@@ -173,11 +171,10 @@ void deconnect_player(int id){
 }
 
 void write_to_all(char * message, int size){
-	printf("Writing to all : %s\n", message);
+	//printf("Writing to all : %s\n", message);
 	for(int i = 0; i < nb_players; i++){
 		if(player_fd[i][1] == 1){
-			write(player_fd[i][0], message, size);
-			
+			write(player_fd[i][0], message, size);	
 		}
 	}
 }
@@ -199,13 +196,14 @@ void * bot_thread(void * args){
 		receive_card_coords(id, &board_x, &board_y);
 		
 		if(board_x == -1 && board_y == -1){
-			printf("BOT %d wants to deconect\n", id);
 			deconnect_player(id);
-			
 			break;
 		}
-		
+
+		pthread_mutex_lock(&mutex_lock);
 		play_response resp = board_play(board_x, board_y, id);
+		pthread_mutex_unlock(&mutex_lock);
+		printf("response : %d\n", resp.code);
 		
 		memset(update_string, 0, sizeof(update_string));
 		memset(reset_string, 0, sizeof(reset_string));
@@ -214,7 +212,6 @@ void * bot_thread(void * args){
 		
 		if(resp_code == 1){ //first pick
 			update_info(&update_string, player_color[id], "200-200-200", resp.str_play1, resp.play1[0], resp.play1[1], 1);
-			
 			write_to_all(&update_string, sizeof(update_string));
 
 		} else if (resp_code == 2){ // is good
@@ -237,6 +234,8 @@ void * bot_thread(void * args){
 			update_info(&update_string, "255-255-255", "255-255-255", " ", resp.play2[0], resp.play2[1], 0);
 
 			write_to_all(&update_string, sizeof(update_string));
+		} else if (resp_code == 0) {// is is filled 
+			printf("FILLED!\n");
 		}
 		
 	}
@@ -244,45 +243,10 @@ void * bot_thread(void * args){
 	exit(1);
 }
 
-
-void * player_main(void * args){
-	int * id_pntr = args;
-	int id = *id_pntr;
-
-	send_int(board_dim, player_fd[id][0]);
-
-	int board_x, board_y;
-
-	char update_string[100];
-	char reset_string[100];
-
-	done = 0;
-
-
-	struct thread_args * args_wait2 = malloc(sizeof(struct thread_args));
-	int locker = 0;
-	args_wait2->lock = &locker;
-
-	struct thread_args *args_5sec = malloc(sizeof(struct thread_args));
-	int fsec_flag = 0;
-	int running_flag = 0;
-	args_5sec->lock = &fsec_flag;
-	args_5sec->id = id;
-	args_5sec->running_flag = &running_flag;
-	
-
-	pthread_t pid1, pid2;
-	
-	
-	time_t t1, t2;
-
-	int case1 = 0;
-
-	//has to update board
+void send_current_board_dispo(int id){
 	struct cell_info infos;
 	char cell_str_status[100];
 
-	//cell_status = (* board_place)malloc(sizeof(board_place));
 	for(int i = 0; i < board_dim; i++){
 		for(int j = 0; j < board_dim; j++){
 
@@ -302,32 +266,64 @@ void * player_main(void * args){
 				write(player_fd[id][0], &cell_str_status, sizeof(cell_str_status));
 
 				memset(cell_str_status, 0, sizeof(cell_str_status));
-
 			}
 		}
 	}
-
 	char end[3] = "***";
 	write(player_fd[id][0], &end, sizeof(end));
+}
+
+void * player_main(void * args){
 	
+	int * id_pntr = args;
+	int id = *id_pntr;
+
+	send_int(board_dim, player_fd[id][0]);
+
+	int board_x, board_y;
+	char update_string[100];
+	char reset_string[100];
+
+	done = 0;
+
+	struct thread_args * args_wait2 = malloc(sizeof(struct thread_args));
+	int locker = 0;
+	args_wait2->lock = &locker;
+
+	struct thread_args *args_5sec = malloc(sizeof(struct thread_args));
+	int fsec_flag = 0;
+	int running_flag = 0;
+	args_5sec->lock = &fsec_flag;
+	args_5sec->id = id;
+	args_5sec->running_flag = &running_flag;
 	
 
+	pthread_t five_sec_wait, two_sec_wait;
 
-	while(1 && !done){
+	send_current_board_dispo(id);
 
-		time(&t1);
+	while(!done){
+
 		receive_card_coords(id, &board_x, &board_y);
+		printf("Received (%d,%d) - %d\n", board_x, board_y, id);
 		
 		if(board_x == -1 && board_y == -1){
-			printf("Client %d wants to deconect\n", id);
 			deconnect_player(id);
-			
 			break;
 		}
-		time(&t2);
+
+		printf("locker = %d\n", locker);
 
 		if(locker != 1){
+
+			//pthread_mutex_lock(&mutex_lock);
 			play_response resp = board_play(board_x, board_y, id);
+			//pthread_mutex_unlock(&mutex_lock);
+			/*printf("	Received resp : \n");
+			printf("		resp.code = %d\n", resp.code);
+			printf("		resp.play1[0] = %d\n", resp.play1[0]);
+			printf("		resp.play1[1] = %d\n", resp.play1[1]);
+			printf("		resp.str_play1 = %s\n", resp.str_play1);*/
 		
 			memset(update_string, 0, sizeof(update_string));
 			memset(reset_string, 0, sizeof(reset_string));
@@ -335,21 +331,18 @@ void * player_main(void * args){
 			int resp_code = resp.code;
 			
 			if(resp_code == 1){
+				
 				update_info(&update_string, player_color[id], "200-200-200", resp.str_play1, resp.play1[0], resp.play1[1], 1);
-				
 				write_to_all(&update_string, sizeof(update_string));
-				
-
 				update_info(&reset_string, "255-255-255", "255-255-255", " ", resp.play1[0], resp.play1[1], 1);
+				
 				args_5sec->message = reset_string;
 				args_5sec->x1 = board_x;
 				args_5sec->y1 = board_y;
 
 				fsec_flag = 0;
 				
-				pthread_create(&pid2, NULL, wait_5_sec_for_play, args_5sec);
-				//free(pid);
-
+				//pthread_create(&five_sec_wait, NULL, wait_5_sec_for_play, args_5sec);
 				
 
 			} else if (resp_code == 2){
@@ -379,8 +372,7 @@ void * player_main(void * args){
 				args_wait2->x2 = resp.play2[0];
 				args_wait2->y2 = resp.play2[1];
 
-				int res = pthread_create(&pid1, NULL, wait_2_seconds_return, args_wait2);
-
+				int res = pthread_create(&two_sec_wait, NULL, wait_2_seconds_return, args_wait2);
 			}
 		}
 		
@@ -391,6 +383,7 @@ void * player_main(void * args){
 void siginthandler(){
 	close(GLOBAL_SOCK_FD);
 	printf("closing global sock_fd");
+	pthread_mutex_destroy(&mutex_lock);
 	exit(1);
 }
 
@@ -399,7 +392,7 @@ int main(){
 	//redirect to close the socket
 	signal(SIGINT, siginthandler);
 	
-	//srand(time(NULL)); 
+	pthread_mutex_init(&mutex_lock, NULL);
 
 	board_dim = 4;	
 
@@ -412,6 +405,8 @@ int main(){
 
 	init_connections();
 	
+	
+
 	while (1)
 	{	
 		printf("Waiting for player %d ... \n", nb_players);
