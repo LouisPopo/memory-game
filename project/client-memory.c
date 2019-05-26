@@ -12,6 +12,7 @@
 int done = 0;
 int board_dim;
 
+// Connect to the server
 void connect_to_server(char ip_addr[], int * sock_fd){
 	struct sockaddr_in server_addr;
 	
@@ -45,6 +46,7 @@ void receive_int(int * num, int fd){
 	*num = ntohl(ret);
 }
 
+// Sends the x and y coordinates of the card picked to the server
 void send_card_coordinates(int x, int y, int * sock_fd){
 	char coords[10];
 	sprintf(coords, "%d+%d", x, y);
@@ -52,6 +54,7 @@ void send_card_coordinates(int x, int y, int * sock_fd){
 	write(*sock_fd, &coords, sizeof(coords));
 }
 
+// Handle the mouses clicks and call the corresponding functions
 void * mouse_click_thread(void * sock_fd_arg){
 	SDL_Event event;
 	
@@ -87,6 +90,7 @@ void * mouse_click_thread(void * sock_fd_arg){
 	pthread_exit(NULL);
 }
 
+// Convert a string of type "255-255-255" to 3 ints
 void string_color_to_RGB(char * string_color, int * RGB){
 	char delim[] = "-";
 	char * copy_string = malloc(strlen(string_color) + 1);
@@ -97,6 +101,7 @@ void string_color_to_RGB(char * string_color, int * RGB){
 	RGB[2] = atoi(strtok(NULL, delim));
 }
 
+// Clear the board
 void erase_board(){
 	for(int x = 0; x < board_dim; x++){
 		for(int y = 0; y < board_dim; y++){
@@ -104,9 +109,8 @@ void erase_board(){
 		}
 	}
 }
-	
 
-
+// Gets a string with all information needed to change one cell
 void update_board(char play[]){
 	char delim[] = ":";
 		
@@ -133,6 +137,8 @@ void update_board(char play[]){
 	write_card(x_pos, y_pos, char_to_write, text_RGB[0], text_RGB[1], text_RGB[2]);
 }
 
+// When receiving a string with the information of two cards to change at the same time, 
+// this function separate that string and update the board one for each card 
 void parse_plays(char update_info[]){
 	
 	if (strstr(update_info, "=") != NULL) {
@@ -153,6 +159,7 @@ void parse_plays(char update_info[]){
 		
 }
 
+// Wait to receive the information of a card to change and parse the play
 void * update_board_thread(void * sock_fd_arg){
 	int * sock_fd = sock_fd_arg;
 	char update_info[100];
@@ -175,12 +182,12 @@ void * update_board_thread(void * sock_fd_arg){
 			parse_plays(update_info);
 		}
 
-		
 	}
 	
 	pthread_exit(NULL);
 }
 
+// Initialize SDL to be able to see the board
 void init_SDL_TTF(){
 	if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) {
 		 printf( "SDL could not initialize! SDL_Error: %s\n", SDL_GetError() );
@@ -192,6 +199,9 @@ void init_SDL_TTF(){
 	}
 }
 
+// Connect to the server, send a string so the server knows it's a player and not a bot
+// receives the dimensions of the board , create and update the board and creates two threads :
+// one to receive the clicks from the user and another one to receive information to update the board
 int main(int argc, char * argv[]){
 	
 	init_SDL_TTF();
@@ -212,15 +222,12 @@ int main(int argc, char * argv[]){
 	strcpy(client, "cl");
 	write(sock_fd, client, sizeof(client));
 	
-
-	// Get the dimension of the board and creates it.
 	receive_int(&board_dim, sock_fd);
 	
-	int err = create_board_window(300, 300, board_dim);
+	int err = create_board_window(600, 600, board_dim);
 
 	char cell_info[100];
 	while(1){
-		//received update of the actual board
 		read(sock_fd, &cell_info, sizeof(cell_info));
 		
 		if(strcmp(cell_info, "***") == 0){
@@ -231,18 +238,12 @@ int main(int argc, char * argv[]){
 		}
 	}
 	
-	// Create two Threads : 
-		// 1 - Process the mouse clicks and send the info to the server
-		// 2 - Receive update to apply on the board
-	
 	pthread_t m_thread, b_thread;	
-	
 	
 	pthread_create(&m_thread, NULL, mouse_click_thread, &sock_fd);
 	pthread_create(&b_thread, NULL, update_board_thread, &sock_fd);
 	pthread_join(m_thread,NULL);
 	pthread_join(b_thread, NULL);
-	
 	
 	exit(1);
 }

@@ -1,6 +1,6 @@
 SERVER_OBJS = board_library.c server-memory.c
 CLIENT_OBJS = UI_library.c client-memory.c
-BOT_OBJS = UI_library.c bot-client.c
+BOT_OBJS = UI_library.c bot-memory.c
 
 CC = gcc
 

@@ -25,10 +25,13 @@ pthread_mutex_t mutex_lock;
 pthread_t pid_gen;
 int isover = 0;
 
+// Convert the i and j index to a single index for the one dimension array
 int linear_conv(int i, int j){
 	return j*dim_board+i;
 }
 
+// Thread that generates random x and y until the card is available and then sends the 
+// first pick to the server, sleep for a few seconds and sends his second pick
 void * play_thread(void * args){
 	int card_x, card_y;
 	srand(time(NULL));
@@ -70,12 +73,12 @@ void * play_thread(void * args){
 	pthread_exit(1);
 }
 
-int is_available(int i, int j){ // return one if the cell is available
-	//pthread_mutex_lock(&mutex_lock);
+// Verify if the card is available
+int is_available(int i, int j){ 
   	return available_cells[linear_conv(i,j)];
-	//pthread_mutex_unlock(&mutex_lock);
 }
 
+// Change the availability of a card
 void change_availability(int x, int y, int is_available){
 	
 	//pthread_mutex_lock(&mutex_lock);
@@ -84,6 +87,7 @@ void change_availability(int x, int y, int is_available){
 	printf("(%d,%d) = %d\n", x,y,is_available);
 }
 
+// Connect to the server
 void connect_to_server(char ip_addr[]){
 	struct sockaddr_in server_addr;
 	
@@ -109,6 +113,7 @@ void connect_to_server(char ip_addr[]){
 	printf("BOT connected\n");
 }
 
+//Convert the x and y generated to a string and sends it to the server
 void send_card_coordinates(int x, int y){
 	char coords[10];
 	sprintf(coords, "%d+%d", x, y);
@@ -116,6 +121,7 @@ void send_card_coordinates(int x, int y){
 	write(sock_fd, &coords, sizeof(coords));
 }
 
+// Receive a string and convert it to an int
 void receive_int(int * num, int fd){
 	int32_t ret;
 	char * data = (char*)&ret;
@@ -123,6 +129,8 @@ void receive_int(int * num, int fd){
 	*num = ntohl(ret);
 }
 
+// After receiving a string with all the information of a card that changed status, it parse the string
+// to find the new availability, and the x and y of the card 
 void get_coords_and_availability(int * x, int * y, int * available, char buffer[]){
 	char delim[] = ":";
 		
@@ -148,6 +156,7 @@ void get_coords_and_availability(int * x, int * y, int * available, char buffer[
 
 }
 
+// Thread that handle all update string that are sent by the server
 void * receive_thread(void * args){
 	
 
@@ -193,6 +202,7 @@ void * receive_thread(void * args){
 	}
 }
 
+// Make every cell available
 void erase_board(){
 	printf("ERASEING BOARD MEMORY\n");
 	available_cells = malloc(sizeof(int) * dim_board * dim_board);
@@ -203,13 +213,14 @@ void erase_board(){
 	}
 }
 
-
-
+// When killing this executable (CTRL + C), this global variable is changed, the bot sends his last pick
+// (if he was generating numbers) and disconnect himself by closing the socket
 void siginthandler(){
 	
 	isover = 1;
 }
 
+// Change the availability of a cell
 void update_availability(char play[]){
 	char delim[] = ":";
 		
@@ -227,9 +238,10 @@ void update_availability(char play[]){
 	
 	change_availability(x_pos, y_pos, 0);
 
-		
 }
 
+// Initialize everything necessary, connect to the server, sent the information to let the server
+// knows that it's a bot, get the board dimension, generate his availability array and creates two threads
 int main(int argc, char * argv[]){
 
 	pthread_mutex_init(&mutex_lock, NULL);

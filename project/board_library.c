@@ -20,14 +20,18 @@ int play[100][2];
 int play1[2];
 int n_corrects;
 
+// Convert the i and j index to a single index
 int linear_conv(int i, int j){
   	return j*dim_board+i;
 }
+
+// Gets ths string of the card at the i and j position
 char * get_board_place_str(int i, int j){
   	return board[linear_conv(i, j)].v;
 }
 
-void clear_board(int dim){
+// Places the string to random places
+void reset_board(int dim){
 	
 	int count  = 0;
 	int i, j;
@@ -77,13 +81,16 @@ void clear_board(int dim){
 	}
 }
 
+// Init the mutex and create a board
 void init_board(int dim){
 
 	pthread_mutex_init(&mutex_lock, NULL);
-	clear_board(dim);
+	reset_board(dim);
 
 }
 
+// Reveive a pick, verify the availability, if available, makes the pick by changing the availability
+// and return the response code
 play_response board_play(int x, int y, int id){
 	play_response resp;
 	resp.code = 10;
@@ -155,11 +162,13 @@ play_response board_play(int x, int y, int id){
 	return resp;
 }
 
+// Change the play of player id to be his first pick
 void reset_play(int player_id, int x, int y){
 	play[player_id][0]= -1;
 	reset_cell_status(x,y);
 }
 
+// Change the status of the cell (x,y)
 void change_cell_status(int x, int y, int id, char str_play[], char color[]){
 	int i = linear_conv(x,y);
 
@@ -172,6 +181,7 @@ void change_cell_status(int x, int y, int id, char str_play[], char color[]){
 	//printf("	SET -	cell(%d,%d) status = %d\n", x, y, id);
 }
 
+// Make every cell available
 void reset_cell_status(int x, int y){
 	//change_cell_status(x,y,-1,"","");
 	
@@ -186,6 +196,7 @@ void reset_cell_status(int x, int y){
 	//printf("	RESET -	cell(%d,%d) status = %d\n", x, y, cells_info[i].player_id);
 }
 
+// Return the status of cell (x,y)
 void get_cell_status(cell_info * info, int x, int y){
 	
 	int i = linear_conv(x,y);

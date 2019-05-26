@@ -11,9 +11,10 @@
 #include <signal.h>
 
 #include "board_library.h"
-#define MAX_PLAYER 100
+#define MAX_PLAYER 200
 
-
+// [0] : (int)sock_fd
+// [1] : 1 if the player is active, 0 if he deconnected
 int player_fd[MAX_PLAYER][2] = {
 	{0,0},
 	{0,0}
@@ -33,7 +34,6 @@ struct thread_args{
 	int * lock;
 	char * message;
 	int id;
-	int * running_flag;
 	int x1;
 	int y1;
 	int x2;
@@ -42,6 +42,7 @@ struct thread_args{
 
 int GLOBAL_SOCK_FD;
 
+// Init the socket to be able to receive connections
 void init_connections(){
 	struct sockaddr_in local_addr;
 	
@@ -66,11 +67,13 @@ void init_connections(){
 	listen(GLOBAL_SOCK_FD, 5);
 }
 
+// Wait for a player or a bot to connect
 void connect_to_player(int player_i){
 	player_fd[player_i][0] = accept(GLOBAL_SOCK_FD, NULL, NULL);	
 	player_fd[player_i][1] = 1;
 }
 
+// Thread that wait 2 seconds and returns the card (when the two pick don't match)
 void * wait_2_seconds_return(void * arguments){
 	
 	int val;
@@ -80,10 +83,7 @@ void * wait_2_seconds_return(void * arguments){
 	*(args->lock) = 1;
 	size_t len = strlen(args->message);
 	
-	// Wait...
 	sleep(2);
-	
-	// Return the "wrong" cards.
 	
 	write_to_all(args->message, len);
 	
@@ -95,6 +95,8 @@ void * wait_2_seconds_return(void * arguments){
 	
 }
 
+// Thread that is launched when a player makes his first pick. If he doesn't pick a 
+// second card, the first card will be returned and his play reset
 void * wait_5_sec_for_play (void * arguments){
 	struct thread_args * args = (struct thread_args *) arguments;
 	
@@ -107,32 +109,9 @@ void * wait_5_sec_for_play (void * arguments){
 	reset_play(args->id, args->x1, args->y1);
 
 	args->lock = 0;
-
-
 }
 
-void * wait_5_sec_for_play2(void * arguments){
-	struct thread_args * args = (struct thread_args *) arguments;
-	
-	if(*(args->running_flag)){
-		pthread_exit(0);
-	} else {
-		*(args->running_flag) = 1;
-		size_t len = strlen(args->message);
-		
-		sleep(5);
-
-		if(*(args->lock) == 0){
-			write_to_all(args->message, len);
-
-			reset_play(args->id, args->x1, args->y1);
-			args->message[0] = '\0';
-		}
-		*(args->running_flag) = 0;
-	}
-}
-
-// Function to send int to client
+// Function to send an integer
 void send_int(int num, int fd){
 	int32_t conv = htonl(num);
 	char * data = (char*)&conv;
@@ -153,10 +132,11 @@ void receive_card_coords(int player_id, int * x, int * y){
 	
 }
 
+// Create a string containing all the information to be send to update one or two cards
 void update_info(char * message[], char paint_color[], char write_color[], char string_to_write[], int x, int y, int first){
 	
-	char x_str[2];
-	char y_str[2];
+	char x_str[5];
+	char y_str[5];
 	char buffer[50];
 	
 	sprintf(x_str, "%d", x);
@@ -170,6 +150,7 @@ void update_info(char * message[], char paint_color[], char write_color[], char 
 	strcat(message, buffer);
 } 
 
+// Generate a random color
 void random_color(char * color_buf){
 	int r = rand() % 256;
 	int g = rand() % 256;
@@ -177,17 +158,19 @@ void random_color(char * color_buf){
 	sprintf(color_buf, "%d-%d-%d", r,g,b);
 }
 
+// Deconnect a player by closing his socket, and sending him a message to close the player thread 
+// listening to communications. 
 void deconnect_player(int id){
-	//close the socket
+
 	char termination_message[] = "over";
 	write(player_fd[id][0], &termination_message, sizeof(termination_message));
 	close(player_fd[id][0]);
 	printf("closing player %d socket\n", id);
-	//make it inactive
 	player_fd[id][1] == 0;
 	nb_active_players--;
 }
 
+// Sends a message to all players/bots connected
 void write_to_all(char * message, int size){
 	printf("Writing to all : %s\n", message);
 	for(int i = 0; i < nb_connections; i++){
@@ -197,6 +180,7 @@ void write_to_all(char * message, int size){
 	}
 }
 
+// Threads that receive information sent by a bot (x and y of the selected card)
 void * bot_thread(void * args){
 	
 	int * id_pntr = args;
@@ -279,6 +263,8 @@ void * bot_thread(void * args){
 	
 }
 
+// Function that sends information of the current status of each cell so that the newly connected 
+// client or bot can update his board.
 void send_current_board_dispo(int id){
 	struct cell_info infos;
 	char cell_str_status[100];
@@ -309,12 +295,11 @@ void send_current_board_dispo(int id){
 	write(player_fd[id][0], &end, sizeof(end));
 }
 
+// Thread that receive information sent by the player (x and y of the selected card)
 void * player_main(void * args){
 	
 	int * id_pntr = args;
 	int id = *id_pntr;
-
-
 
 	while(nb_connections < 2){
 		//wait...
@@ -334,10 +319,8 @@ void * player_main(void * args){
 
 	struct thread_args *args_5sec = malloc(sizeof(struct thread_args));
 	int fsec_flag = 0;
-	int running_flag = 0;
 	args_5sec->lock = &fsec_flag;
 	args_5sec->id = id;
-	args_5sec->running_flag = &running_flag;
 	
 
 	pthread_t five_sec_wait, two_sec_wait;
@@ -433,7 +416,7 @@ void * player_main(void * args){
 
 					//create a new board
 					sleep(10);
-					clear_board(board_dim);
+					reset_board(board_dim);
 				}
 			}
 		}
@@ -442,6 +425,7 @@ void * player_main(void * args){
 
 }
 
+// Handle the termination of the executable, make sure to close the socket listening to new clients
 void siginthandler(){
 	close(GLOBAL_SOCK_FD);
 	printf("closing global sock_fd");
@@ -449,13 +433,23 @@ void siginthandler(){
 	exit(1);
 }
 
-int main(){
+// Initialise everything necessary and is constantly waiting for new players or bots to connect
+int main(int argc, char * argv[]){
 
 	signal(SIGINT, siginthandler);
 	
 	pthread_mutex_init(&mutex_lock, NULL);
 
-	board_dim = 4;	
+	if (argc < 2)
+		board_dim = 4;
+	else {
+		board_dim = atoi(argv[1]);
+		printf("the board dim is : %d\n", board_dim);
+	}
+		
+	if((board_dim % 2) != 0 ){
+		board_dim++;
+	}
 
 	init_board(board_dim);
 
