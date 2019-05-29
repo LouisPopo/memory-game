@@ -1,11 +1,11 @@
 SERVER_OBJS = board_library.c server-memory.c
-CLIENT_OBJS = UI_library.c client-memory.c
+PLAYER_OBJS = UI_library.c player-memory.c
 BOT_OBJS = UI_library.c bot-memory.c
 
 CC = gcc
 
 SERVER_NAME = server
-CLIENT_NAME = client
+PLAYER_NAME = player
 BOT_NAME = bot
 
 LINKER_FLAGS = -lSDL2 -lSDL2_ttf -lpthread -w
@@ -15,8 +15,8 @@ all: server client bot
 server: $(SERVER_OBJS)
 	$(CC) $(SERVER_OBJS) $(LINKER_FLAGS) -o $(SERVER_NAME)
 
-client : $(CLIENT_OBJS)
-	$(CC) $(CLIENT_OBJS) $(LINKER_FLAGS) -o $(CLIENT_NAME)
+client : $(PLAYER_OBJS)
+	$(CC) $(PLAYER_OBJS) $(LINKER_FLAGS) -o $(CLIENT_NAME)
 
 bot : $(BOT_OBJS)
 	$(CC) $(BOT_OBJS) $(LINKER_FLAGS) -o $(BOT_NAME)
