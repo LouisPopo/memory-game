@@ -174,7 +174,7 @@ void * update_board_thread(void * sock_fd_arg){
 			erase_board();
 
 		} else {
-			printf("Received the message : %s \n", update_info);
+			//printf("Received the message : %s \n", update_info);
 		
 			parse_plays(update_info);
 		}

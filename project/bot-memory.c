@@ -166,7 +166,6 @@ void * receive_thread(void * args){
 	while(1){
 
 		read(sock_fd, &buffer, sizeof(buffer));
-		printf("received : %s\n", buffer);
 		if(strcmp(buffer, "over") == 0){
 			printf("RECEIVED OVER");
 			close(sock_fd);

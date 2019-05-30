@@ -172,7 +172,6 @@ void deconnect_player(int id){
 
 // Sends a message to all players/bots connected
 void write_to_all(char * message, int size){
-	printf("Writing to all : %s\n", message);
 	for(int i = 0; i < nb_connections; i++){
 		if(player_fd[i][1] == 1){
 			write(player_fd[i][0], message, size);	
@@ -349,7 +348,6 @@ void * player_main(void * args){
 				memset(reset_string, 0, sizeof(reset_string));
 
 				int resp_code = resp.code;
-				printf("resp coce = %d\n", resp.code);
 				if(resp_code == 1){
 					
 					update_info(&update_string, player_color[id], "200-200-200", resp.str_play1, resp.play1[0], resp.play1[1], 1);
