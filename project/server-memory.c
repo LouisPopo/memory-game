@@ -27,8 +27,7 @@ int nb_active_players = 0;
 int board_dim;
 int done = 0;
 
-
-pthread_mutex_t mutex_lock;
+	
 
 struct thread_args{
 	int * lock;
@@ -427,7 +426,6 @@ void * player_main(void * args){
 void siginthandler(){
 	close(GLOBAL_SOCK_FD);
 	printf("closing global sock_fd");
-	pthread_mutex_destroy(&mutex_lock);
 	exit(1);
 }
 
@@ -436,7 +434,6 @@ int main(int argc, char * argv[]){
 
 	signal(SIGINT, siginthandler);
 	
-	pthread_mutex_init(&mutex_lock, NULL);
 
 	if (argc < 2)
 		board_dim = 4;

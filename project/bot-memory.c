@@ -20,7 +20,6 @@ int * available_cells;
 int n_correct = 0;
 int dim_board;
 int sock_fd;
-pthread_mutex_t mutex_lock;
 
 pthread_t pid_gen;
 int isover = 0;
@@ -81,9 +80,7 @@ int is_available(int i, int j){
 // Change the availability of a card
 void change_availability(int x, int y, int is_available){
 	
-	//pthread_mutex_lock(&mutex_lock);
 	available_cells[linear_conv(x,y)] = is_available;
-	//pthread_mutex_unlock(&mutex_lock);
 	printf("(%d,%d) = %d\n", x,y,is_available);
 }
 
@@ -242,7 +239,6 @@ void update_availability(char play[]){
 // knows that it's a bot, get the board dimension, generate his availability array and creates two threads
 int main(int argc, char * argv[]){
 
-	pthread_mutex_init(&mutex_lock, NULL);
 
 	signal(SIGINT, siginthandler);
 

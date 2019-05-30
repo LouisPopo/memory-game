@@ -61,7 +61,7 @@ void reset_board(int dim){
 			i = random()% dim_board;
 			j = random()% dim_board;
 			str_place = get_board_place_str(i, j);
-			printf("%d %d -%s-\n", i, j, str_place);
+			//printf("%d %d -%s-\n", i, j, str_place);
 		}while(str_place[0] != '\0');
 		str_place[0] = c1;
 		str_place[1] = c2;
@@ -70,7 +70,7 @@ void reset_board(int dim){
 			i = random()% dim_board;
 			j = random()% dim_board;
 			str_place = get_board_place_str(i, j);
-			printf("%d %d -%s-\n", i, j, str_place);
+			//printf("%d %d -%s-\n", i, j, str_place);
 		}while(str_place[0] != '\0');
 		str_place[0] = c1;
 		str_place[1] = c2;
