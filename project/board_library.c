@@ -7,6 +7,7 @@
 #define BLACK "0-0-0"
 #define RED "255-0-0"
 #define GREY "200-200-200"
+#define MAX_PLAYER 200
 
 int dim_board;
 board_place * board;
@@ -14,7 +15,7 @@ cell_info * cells_info;
 
 pthread_mutex_t mutex_lock;
 
-int play[100][2];
+int play[MAX_PLAYER][2];
 
 
 int play1[2];

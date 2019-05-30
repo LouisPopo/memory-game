@@ -152,8 +152,7 @@ void get_coords_and_availability(int * x, int * y, int * available, char buffer[
 		*available = 0;
 		n_correct++;
 	}
-		
-
+	
 }
 
 // Thread that handle all update string that are sent by the server

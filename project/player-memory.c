@@ -23,13 +23,11 @@ void connect_to_server(char ip_addr[], int * sock_fd){
 		exit(-1);
 	}
 	
-	
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port= htons(MEMORY_PORT);
 	inet_aton(ip_addr, &server_addr.sin_addr);
 	
 
-	
 	if(connect(*sock_fd,(const struct sockaddr *) &server_addr,sizeof(server_addr)) == -1){
 		printf("Error connecting\n");
 		exit(-1);
@@ -131,7 +129,6 @@ void update_board(char play[]){
 		
 	string_color_to_RGB(card_color, card_RGB);
 	string_color_to_RGB(text_color, text_RGB);
-		
 		
 	paint_card(x_pos, y_pos, card_RGB[0], card_RGB[1], card_RGB[2]);
 	write_card(x_pos, y_pos, char_to_write, text_RGB[0], text_RGB[1], text_RGB[2]);
